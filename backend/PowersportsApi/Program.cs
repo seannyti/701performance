@@ -634,7 +634,8 @@ public class Program
                     u.LastLoginAt,
                     u.LastLoginIp,
                     u.IsActive,
-                    u.SubscribeNewsletter
+                    u.SubscribeNewsletter,
+                    u.IsEmailVerified
                 })
                 .OrderBy(u => u.LastName)
                 .ThenBy(u => u.FirstName)
@@ -662,7 +663,8 @@ public class Program
                     u.LastLoginAt,
                     u.LastLoginIp,
                     u.IsActive,
-                    u.SubscribeNewsletter
+                    u.SubscribeNewsletter,
+                    u.IsEmailVerified
                 })
                 .FirstOrDefaultAsync();
             return user != null ? Results.Ok(user) : Results.NotFound($"User with ID {id} not found");
@@ -859,6 +861,7 @@ public class Program
                 user.Email     = email;
                 user.Phone     = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
                 user.SubscribeNewsletter = request.SubscribeNewsletter;
+                user.IsEmailVerified = request.IsEmailVerified;
                 user.UpdatedAt = DateTime.UtcNow;
 
                 await context.SaveChangesAsync();

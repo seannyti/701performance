@@ -82,6 +82,7 @@ export interface AdminUser {
   lastLoginIp?: string;
   isActive: boolean;
   subscribeNewsletter?: boolean;
+  isEmailVerified: boolean;
 }
 
 export interface UpdateUserInfoRequest {
@@ -90,6 +91,7 @@ export interface UpdateUserInfoRequest {
   email: string;
   phone?: string;
   subscribeNewsletter: boolean;
+  isEmailVerified: boolean;
 }
 
 export interface UpdateUserRequest {

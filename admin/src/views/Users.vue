@@ -237,6 +237,15 @@
               </label>
             </div>
 
+            <!-- Email Verified -->
+            <div class="form-group form-group--check">
+              <label class="check-label">
+                <input type="checkbox" v-model="editForm.isEmailVerified" class="check-input" />
+                <span>Email verified</span>
+              </label>
+              <p class="form-hint" style="margin-top: 0.25rem; margin-left: 1.5rem;">Check to manually verify this user's email address</p>
+            </div>
+
             <!-- Metadata (read-only) -->
             <div class="form-section-title" style="margin-top:1.25rem">Account Info</div>
             <div class="meta-grid">
@@ -436,7 +445,7 @@ const editLoading    = ref(false)
 const editError      = ref<string | null>(null)
 const editFormErrors = ref<Record<string, string>>({})
 const editForm = ref<UpdateUserInfoRequest & { role: UserRole }>({
-  firstName: '', lastName: '', email: '', phone: '', subscribeNewsletter: false, role: UserRole.User
+  firstName: '', lastName: '', email: '', phone: '', subscribeNewsletter: false, isEmailVerified: false, role: UserRole.User
 })
 
 // ─── Reset password modal ──────────────────────────────────────────────────────
@@ -510,6 +519,7 @@ const openEditModal = (user: AdminUser) => {
     email:     user.email,
     phone:     user.phone ?? '',
     subscribeNewsletter: user.subscribeNewsletter ?? false,
+    isEmailVerified: user.isEmailVerified ?? false,
     role: user.role
   }
   editFormErrors.value = {}

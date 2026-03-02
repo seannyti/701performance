@@ -234,6 +234,8 @@ public class UpdateAdminUserInfoRequest
     public string? Phone { get; set; }
 
     public bool SubscribeNewsletter { get; set; } = false;
+    
+    public bool IsEmailVerified { get; set; } = false;
 }
 
 /// <summary>
