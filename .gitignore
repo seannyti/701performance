@@ -1,0 +1,79 @@
+# Dependencies
+node_modules/
+packages/*/node_modules/
+
+# Build outputs
+dist/
+build/
+*.log
+
+# .NET Build outputs
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# IDE & Editor files
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+*.local.json
+appsettings.Development.json
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.mdf
+*.ldf
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Uploads & user content
+wwwroot/uploads/*
+!wwwroot/uploads/.gitkeep
+
+# Backup files
+*.bak
+*.backup
+BACKUP_*/
+
+# Package files
+*.nupkg
+*.snupkg
+
+# Test results
+TestResults/
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# Others
+*.cache
+*.vsidx
+*.vspscc
+project.lock.json
+project.fragment.lock.json
+artifacts/

@@ -1,0 +1,21 @@
+{
+  "name": "powersports-showcase-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "frontend",
+    "admin"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:frontend": "npm run dev --workspace=powersports-showcase-frontend",
+    "dev:admin": "npm run dev --workspace=powersports-admin",
+    "build:frontend": "npm run build --workspace=powersports-showcase-frontend",
+    "build:admin": "npm run build --workspace=powersports-admin",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

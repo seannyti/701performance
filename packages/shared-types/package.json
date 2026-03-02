@@ -1,0 +1,20 @@
+{
+  "name": "@powersports/shared-types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript type definitions for Powersports Showcase",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "types",
+    "typescript",
+    "powersports"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
