@@ -54,8 +54,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # Uploads & user content
-wwwroot/uploads/*
-!wwwroot/uploads/.gitkeep
+**/wwwroot/uploads/**
+!**/wwwroot/uploads/.gitkeep
 
 # Backup files
 *.bak

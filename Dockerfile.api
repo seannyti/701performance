@@ -1,0 +1,29 @@
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Restore dependencies first for layer caching
+COPY backend/PowersportsApi/PowersportsApi.csproj backend/PowersportsApi/
+RUN dotnet restore backend/PowersportsApi/PowersportsApi.csproj
+
+# Copy source and publish
+COPY backend/PowersportsApi/ backend/PowersportsApi/
+RUN dotnet publish backend/PowersportsApi/PowersportsApi.csproj \
+    -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+
+# Create uploads directory
+RUN mkdir -p wwwroot/uploads
+
+VOLUME ["/app/wwwroot/uploads"]
+
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ASPNETCORE_URLS=http://+:5226
+
+EXPOSE 5226
+
+ENTRYPOINT ["dotnet", "PowersportsApi.dll"]

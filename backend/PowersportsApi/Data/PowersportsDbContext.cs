@@ -299,55 +299,6 @@ public class PowersportsDbContext : DbContext
 
     private static void SeedData(ModelBuilder modelBuilder)
     {
-        // Seed Categories first
-        modelBuilder.Entity<Category>().HasData(
-            new Category
-            {
-                Id = 1,
-                Name = "ATV",
-                Description = "All-Terrain Vehicles for work and recreation",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            },
-            new Category
-            {
-                Id = 2,
-                Name = "Dirtbike",
-                Description = "Motorcycles designed for off-road terrain",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            },
-            new Category
-            {
-                Id = 3,
-                Name = "UTV",
-                Description = "Utility Task Vehicles for heavy-duty work",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            },
-            new Category
-            {
-                Id = 4,
-                Name = "Snowmobile",
-                Description = "Winter vehicles for snow terrain",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            },
-            new Category
-            {
-                Id = 5,
-                Name = "Gear",
-                Description = "Safety gear and accessories",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            }
-        );
-
         // Seed Site Settings for dynamic content management
         modelBuilder.Entity<SiteSetting>().HasData(
             new SiteSetting
@@ -370,7 +321,7 @@ public class PowersportsDbContext : DbContext
                 Id = 2,
                 Key = "site_tagline",
                 DisplayName = "Company Tagline",
-                Value = "Your Gateway to Adventure",
+                Value = "",
                 Description = "Brief tagline or motto displayed in headers and hero sections",
                 Type = SettingType.Text,
                 Category = "General",
@@ -430,7 +381,7 @@ public class PowersportsDbContext : DbContext
                 Id = 6,
                 Key = "hero_title",
                 DisplayName = "Homepage Hero Title",
-                Value = "Discover Your Next Adventure",
+                Value = "",
                 Description = "Main heading on the homepage hero section",
                 Type = SettingType.Text,
                 Category = "General",
@@ -445,7 +396,7 @@ public class PowersportsDbContext : DbContext
                 Id = 7,
                 Key = "hero_subtitle",
                 DisplayName = "Homepage Hero Subtitle",
-                Value = "Premium powersports vehicles and gear for every adventure seeker",
+                Value = "",
                 Description = "Subtitle text below the hero title",
                 Type = SettingType.TextArea,
                 Category = "General",

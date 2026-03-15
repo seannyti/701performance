@@ -1,0 +1,38 @@
+# Node
+**/node_modules/
+**/.pnpm-store/
+
+# Build outputs
+**/dist/
+**/bin/
+**/obj/
+
+# Git
+**/.git/
+**/.gitignore
+
+# Sensitive files — config comes from environment variables in docker-compose
+**/.env.local
+**/.env.*.local
+**/appsettings.Development.json
+**/appsettings.Production.json
+.env
+
+# Test projects
+backend/PowersportsApi.Tests/
+
+# Uploaded media — managed via Docker volume
+backend/PowersportsApi/wwwroot/uploads/
+
+# Logs
+**/*.log
+npm-debug.log*
+
+# IDE
+**/.vs/
+**/.vscode/
+**/.idea/
+
+# OS
+**/.DS_Store
+**/Thumbs.db

@@ -24,8 +24,17 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
         var configuration = builder.Configuration;
 
+        var connectionString = configuration.GetConnectionString("DefaultConnection")!;
+        var dbProvider = configuration["DatabaseProvider"] ??
+            (builder.Environment.IsProduction() ? "MySQL" : "SqlServer");
+
         builder.Services.AddDbContext<PowersportsDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+        {
+            if (dbProvider == "MySQL")
+                options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 0)));
+            else
+                options.UseSqlServer(connectionString);
+        });
 
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<ProductService>();
@@ -4252,12 +4261,12 @@ public class Program
             {
                 // General Settings
                 new SiteSetting { Key = "site_name", DisplayName = "Site Name", Value = "701 Performance Power", Type = SettingType.Text, Category = "General", SortOrder = 1, IsRequired = true },
-                new SiteSetting { Key = "site_tagline", DisplayName = "Site Tagline", Value = "Your Ultimate Powersports Destination", Type = SettingType.Text, Category = "General", SortOrder = 2 },
-                new SiteSetting { Key = "logo_url", DisplayName = "Logo URL", Value = "/images/logo.png", Type = SettingType.Image, Category = "General", SortOrder = 3 },
+                new SiteSetting { Key = "site_tagline", DisplayName = "Site Tagline", Value = "", Type = SettingType.Text, Category = "General", SortOrder = 2 },
+                new SiteSetting { Key = "logo_url", DisplayName = "Logo URL", Value = "", Type = SettingType.Image, Category = "General", SortOrder = 3 },
                 
                 // Contact Settings  
-                new SiteSetting { Key = "contact_email", DisplayName = "Contact Email", Value = "info@701performancepower.com", Type = SettingType.Email, Category = "General", SortOrder = 4, IsRequired = true },
-                new SiteSetting { Key = "contact_phone", DisplayName = "Contact Phone", Value = "(701) 555-0100", Type = SettingType.Phone, Category = "General", SortOrder = 5 },
+                new SiteSetting { Key = "contact_email", DisplayName = "Contact Email", Value = "", Type = SettingType.Email, Category = "General", SortOrder = 4, IsRequired = true },
+                new SiteSetting { Key = "contact_phone", DisplayName = "Contact Phone", Value = "", Type = SettingType.Phone, Category = "General", SortOrder = 5 },
                 new SiteSetting { Key = "contact_address", DisplayName = "Contact Address", Value = "123 Powersports Drive, Fargo, ND 58102", Type = SettingType.TextArea, Category = "General", SortOrder = 6 },
                 
                 // Social Media
@@ -4267,12 +4276,12 @@ public class Program
                 new SiteSetting { Key = "youtube_url", DisplayName = "YouTube URL", Value = "", Type = SettingType.Url, Category = "Social Media", SortOrder = 4 },
                 
                 // Homepage Content
-                new SiteSetting { Key = "hero_title", DisplayName = "Homepage Hero Title", Value = "Premium Powersports Vehicles & Gear", Type = SettingType.Text, Category = "Homepage", SortOrder = 1 },
-                new SiteSetting { Key = "hero_subtitle", DisplayName = "Homepage Hero Subtitle", Value = "Discover our collection of ATVs, dirt bikes, UTVs, snowmobiles, and premium gear for all your outdoor adventures.", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 2 },
-                new SiteSetting { Key = "home_features", DisplayName = "Why Choose Us Features", Value = "[{\"icon\":\"🛍️\",\"title\":\"Wide Selection\",\"description\":\"From ATVs to snowmobiles, we have everything you need for your next adventure.\"},{\"icon\":\"⭐\",\"title\":\"Quality Brands\",\"description\":\"We partner with top manufacturers to bring you reliable, high-performance vehicles.\"},{\"icon\":\"🔧\",\"title\":\"Expert Support\",\"description\":\"Our knowledgeable team is here to help you find the perfect gear for your needs.\"}]", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 3 },
-                new SiteSetting { Key = "partner_brands", DisplayName = "Partner Brands", Value = "[{\"name\":\"Vitacci\",\"logoUrl\":\"\",\"website\":\"\"},{\"name\":\"Apollo\",\"logoUrl\":\"\",\"website\":\"\"},{\"name\":\"Moto Morini\",\"logoUrl\":\"\",\"website\":\"\"},{\"name\":\"BLP Moto\",\"logoUrl\":\"\",\"website\":\"\"},{\"name\":\"Icebear\",\"logoUrl\":\"\",\"website\":\"\"}]", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 4 },
-                new SiteSetting { Key = "brands_section_title", DisplayName = "Brands Section Title", Value = "Brands We Carry", Type = SettingType.Text, Category = "Homepage", SortOrder = 5 },
-                new SiteSetting { Key = "brands_section_subtitle", DisplayName = "Brands Section Subtitle", Value = "We partner with industry-leading manufacturers to bring you the best powersports vehicles", Type = SettingType.Text, Category = "Homepage", SortOrder = 6 },
+                new SiteSetting { Key = "hero_title", DisplayName = "Homepage Hero Title", Value = "", Type = SettingType.Text, Category = "Homepage", SortOrder = 1 },
+                new SiteSetting { Key = "hero_subtitle", DisplayName = "Homepage Hero Subtitle", Value = "", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 2 },
+                new SiteSetting { Key = "home_features", DisplayName = "Why Choose Us Features", Value = "[]", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 3 },
+                new SiteSetting { Key = "partner_brands", DisplayName = "Partner Brands", Value = "[]", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 4 },
+                new SiteSetting { Key = "brands_section_title", DisplayName = "Brands Section Title", Value = "", Type = SettingType.Text, Category = "Homepage", SortOrder = 5 },
+                new SiteSetting { Key = "brands_section_subtitle", DisplayName = "Brands Section Subtitle", Value = "", Type = SettingType.Text, Category = "Homepage", SortOrder = 6 },
                 
                 // Products Page
                 new SiteSetting { Key = "products_title", DisplayName = "Products Page Title", Value = "Our Products", Type = SettingType.Text, Category = "Products Page", SortOrder = 1 },
@@ -4280,15 +4289,15 @@ public class Program
                 
                 // About Page
                 new SiteSetting { Key = "about_title", DisplayName = "About Page Title", Value = "About Us", Type = SettingType.Text, Category = "About Page", SortOrder = 1 },
-                new SiteSetting { Key = "about_subtitle", DisplayName = "About Page Subtitle", Value = "Your trusted partner for powersports adventures", Type = SettingType.TextArea, Category = "About Page", SortOrder = 2 },
-                new SiteSetting { Key = "about_story_paragraph1", DisplayName = "Our Story - Paragraph 1", Value = "Founded with a passion for adventure and the great outdoors, Powersports Gear & Vehicles has been serving the powersports community for over a decade. We specialize in high-quality ATVs, dirt bikes, UTVs, snowmobiles, and gear for adventure seekers who demand the best.", Type = SettingType.TextArea, Category = "About Page", SortOrder = 3 },
-                new SiteSetting { Key = "about_story_paragraph2", DisplayName = "Our Story - Paragraph 2", Value = "Our journey began when our founder, an avid off-road enthusiast, recognized the need for a reliable source of premium powersports equipment. Today, we've grown into a trusted name in the industry, serving customers across the country with top-tier products and exceptional service.", Type = SettingType.TextArea, Category = "About Page", SortOrder = 4 },
-                new SiteSetting { Key = "about_story_image", DisplayName = "Our Story - Image", Value = "https://images.unsplash.com/photo-1558618047-6c0c841469ed?w=600&h=400&fit=crop", Type = SettingType.Image, Category = "About Page", SortOrder = 5 },
-                new SiteSetting { Key = "about_mission_image", DisplayName = "Our Mission - Image", Value = "https://images.unsplash.com/photo-1591737622611-b6c5ae78542d?w=600&h=400&fit=crop", Type = SettingType.Image, Category = "About Page", SortOrder = 6 },
-                new SiteSetting { Key = "about_mission_text", DisplayName = "Our Mission - Main Text", Value = "To empower outdoor enthusiasts with the finest powersports vehicles and gear, ensuring every adventure is safe, thrilling, and unforgettable. We believe that the right equipment doesn't just enhance your experience—it transforms it.", Type = SettingType.TextArea, Category = "About Page", SortOrder = 7 },
-                new SiteSetting { Key = "about_mission_points", DisplayName = "Our Mission - Key Points", Value = "[{\"icon\":\"🎯\",\"title\":\"Quality First\",\"description\":\"We partner only with trusted manufacturers who share our commitment to excellence.\"},{\"icon\":\"🤝\",\"title\":\"Customer Focus\",\"description\":\"Your satisfaction drives everything we do, from product selection to after-sales support.\"},{\"icon\":\"🌟\",\"title\":\"Innovation\",\"description\":\"We stay ahead of industry trends to bring you the latest and greatest in powersports technology.\"}]", Type = SettingType.TextArea, Category = "About Page", SortOrder = 8 },
-                new SiteSetting { Key = "about_values", DisplayName = "Our Values", Value = "[{\"icon\":\"🛡️\",\"title\":\"Safety\",\"description\":\"Safety is paramount in everything we do. We provide only certified, tested equipment and comprehensive safety information.\"},{\"icon\":\"🌍\",\"title\":\"Sustainability\",\"description\":\"We're committed to responsible practices that preserve the natural environments we love to explore.\"},{\"icon\":\"🚀\",\"title\":\"Performance\",\"description\":\"We deliver products that perform when it matters most, built to handle any terrain and weather condition.\"}]", Type = SettingType.TextArea, Category = "About Page", SortOrder = 9 },
-                new SiteSetting { Key = "about_team_members", DisplayName = "Team Members", Value = "[{\"name\":\"Mike Johnson\",\"role\":\"Founder & CEO\",\"bio\":\"20+ years in powersports with a passion for bringing the best products to fellow enthusiasts.\",\"imageUrl\":\"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&crop=face\"},{\"name\":\"Sarah Williams\",\"role\":\"Head of Sales\",\"bio\":\"Expert in matching customers with their perfect vehicle, with 15 years of industry experience.\",\"imageUrl\":\"https://images.unsplash.com/photo-1494790108755-2616b612b786?w=300&h=300&fit=crop&crop=face\"},{\"name\":\"Tom Rodriguez\",\"role\":\"Service Manager\",\"bio\":\"Certified technician ensuring every vehicle meets our rigorous quality and safety standards.\",\"imageUrl\":\"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&h=300&fit=crop&crop=face\"}]", Type = SettingType.TextArea, Category = "About Page", SortOrder = 10 },
+                new SiteSetting { Key = "about_subtitle", DisplayName = "About Page Subtitle", Value = "", Type = SettingType.TextArea, Category = "About Page", SortOrder = 2 },
+                new SiteSetting { Key = "about_story_paragraph1", DisplayName = "Our Story - Paragraph 1", Value = "", Type = SettingType.TextArea, Category = "About Page", SortOrder = 3 },
+                new SiteSetting { Key = "about_story_paragraph2", DisplayName = "Our Story - Paragraph 2", Value = "", Type = SettingType.TextArea, Category = "About Page", SortOrder = 4 },
+                new SiteSetting { Key = "about_story_image", DisplayName = "Our Story - Image", Value = "", Type = SettingType.Image, Category = "About Page", SortOrder = 5 },
+                new SiteSetting { Key = "about_mission_image", DisplayName = "Our Mission - Image", Value = "", Type = SettingType.Image, Category = "About Page", SortOrder = 6 },
+                new SiteSetting { Key = "about_mission_text", DisplayName = "Our Mission - Main Text", Value = "", Type = SettingType.TextArea, Category = "About Page", SortOrder = 7 },
+                new SiteSetting { Key = "about_mission_points", DisplayName = "Our Mission - Key Points", Value = "[]", Type = SettingType.TextArea, Category = "About Page", SortOrder = 8 },
+                new SiteSetting { Key = "about_values", DisplayName = "Our Values", Value = "[]", Type = SettingType.TextArea, Category = "About Page", SortOrder = 9 },
+                new SiteSetting { Key = "about_team_members", DisplayName = "Team Members", Value = "[]", Type = SettingType.TextArea, Category = "About Page", SortOrder = 10 },
                 
                 // Contact Page
                 new SiteSetting { Key = "contact_title", DisplayName = "Contact Page Title", Value = "Contact Us", Type = SettingType.Text, Category = "Contact Page", SortOrder = 1 },
@@ -4303,27 +4312,27 @@ public class Program
                 new SiteSetting { Key = "contact_email_note", DisplayName = "Email Response Note", Value = "We respond within 24 hours", Type = SettingType.Text, Category = "Contact Page", SortOrder = 10 },
                 new SiteSetting { Key = "contact_livechat_text", DisplayName = "Live Chat Availability", Value = "Available during business hours", Type = SettingType.Text, Category = "Contact Page", SortOrder = 11 },
                 new SiteSetting { Key = "contact_livechat_note", DisplayName = "Live Chat Note", Value = "Quick answers to your questions", Type = SettingType.Text, Category = "Contact Page", SortOrder = 12 },
-                new SiteSetting { Key = "contact_reasons", DisplayName = "Why Contact Us - Reasons", Value = "[{\"title\":\"Expert advice on product selection\"},{\"title\":\"Personalized recommendations\"},{\"title\":\"Financing options\"},{\"title\":\"Schedule a test ride\"},{\"title\":\"After-sales support\"}]", Type = SettingType.TextArea, Category = "Contact Page", SortOrder = 13 },
+                new SiteSetting { Key = "contact_reasons", DisplayName = "Why Contact Us - Reasons", Value = "[]", Type = SettingType.TextArea, Category = "Contact Page", SortOrder = 13 },
                 
                 // FAQ Page
                 new SiteSetting { Key = "faq_title", DisplayName = "FAQ Page Title", Value = "FAQ", Type = SettingType.Text, Category = "FAQ Page", SortOrder = 1 },
                 new SiteSetting { Key = "faq_subtitle", DisplayName = "FAQ Page Subtitle", Value = "Frequently Asked Questions", Type = SettingType.TextArea, Category = "FAQ Page", SortOrder = 2 },
-                new SiteSetting { Key = "faq_content", DisplayName = "FAQ Page Content", Value = "<h2>General Questions</h2><p>Default FAQ content goes here.</p>", Type = SettingType.Html, Category = "FAQ Page", SortOrder = 3 },
+                new SiteSetting { Key = "faq_content", DisplayName = "FAQ Page Content", Value = "", Type = SettingType.Html, Category = "FAQ Page", SortOrder = 3 },
                 
                 // Shipping & Returns Page
                 new SiteSetting { Key = "shipping_title", DisplayName = "Shipping & Returns Page Title", Value = "Shipping & Returns", Type = SettingType.Text, Category = "Shipping Page", SortOrder = 1 },
-                new SiteSetting { Key = "shipping_subtitle", DisplayName = "Shipping & Returns Page Subtitle", Value = "Our shipping and return policies", Type = SettingType.TextArea, Category = "Shipping Page", SortOrder = 2 },
-                new SiteSetting { Key = "shipping_content", DisplayName = "Shipping & Returns Page Content", Value = "<h2>Shipping Policy</h2><p>Default shipping policy content goes here.</p>", Type = SettingType.Html, Category = "Shipping Page", SortOrder = 3 },
+                new SiteSetting { Key = "shipping_subtitle", DisplayName = "Shipping & Returns Page Subtitle", Value = "", Type = SettingType.TextArea, Category = "Shipping Page", SortOrder = 2 },
+                new SiteSetting { Key = "shipping_content", DisplayName = "Shipping & Returns Page Content", Value = "", Type = SettingType.Html, Category = "Shipping Page", SortOrder = 3 },
                 
                 // Privacy Policy Page
                 new SiteSetting { Key = "privacy_title", DisplayName = "Privacy Policy Page Title", Value = "Privacy Policy", Type = SettingType.Text, Category = "Privacy Page", SortOrder = 1 },
-                new SiteSetting { Key = "privacy_subtitle", DisplayName = "Privacy Policy Page Subtitle", Value = "How we handle your personal information", Type = SettingType.TextArea, Category = "Privacy Page", SortOrder = 2 },
-                new SiteSetting { Key = "privacy_content", DisplayName = "Privacy Policy Page Content", Value = "<h2>Privacy Policy</h2><p>Default privacy policy content goes here.</p>", Type = SettingType.Html, Category = "Privacy Page", SortOrder = 3 },
+                new SiteSetting { Key = "privacy_subtitle", DisplayName = "Privacy Policy Page Subtitle", Value = "", Type = SettingType.TextArea, Category = "Privacy Page", SortOrder = 2 },
+                new SiteSetting { Key = "privacy_content", DisplayName = "Privacy Policy Page Content", Value = "", Type = SettingType.Html, Category = "Privacy Page", SortOrder = 3 },
                 
                 // Terms of Service Page
                 new SiteSetting { Key = "terms_title", DisplayName = "Terms of Service Page Title", Value = "Terms of Service", Type = SettingType.Text, Category = "Terms Page", SortOrder = 1 },
-                new SiteSetting { Key = "terms_subtitle", DisplayName = "Terms of Service Page Subtitle", Value = "Terms and conditions for using our services", Type = SettingType.TextArea, Category = "Terms Page", SortOrder = 2 },
-                new SiteSetting { Key = "terms_content", DisplayName = "Terms of Service Page Content", Value = "<h2>Terms of Service</h2><p>Default terms of service content goes here.</p>", Type = SettingType.Html, Category = "Terms Page", SortOrder = 3 },
+                new SiteSetting { Key = "terms_subtitle", DisplayName = "Terms of Service Page Subtitle", Value = "", Type = SettingType.TextArea, Category = "Terms Page", SortOrder = 2 },
+                new SiteSetting { Key = "terms_content", DisplayName = "Terms of Service Page Content", Value = "", Type = SettingType.Html, Category = "Terms Page", SortOrder = 3 },
                 
                 // Advanced - Security & Access
                 new SiteSetting { Key = "session_timeout", DisplayName = "Session Timeout (minutes)", Value = "10", Type = SettingType.Number, Category = "Advanced", SortOrder = 1 },
