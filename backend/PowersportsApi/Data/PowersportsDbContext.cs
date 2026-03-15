@@ -20,6 +20,12 @@ public class PowersportsDbContext : DbContext
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<SiteSetting> SiteSettings { get; set; } = null!;
+    public DbSet<ContactSubmission> ContactSubmissions { get; set; } = null!;
+    public DbSet<Order> Orders { get; set; } = null!;
+    public DbSet<OrderItem> OrderItems { get; set; } = null!;
+    public DbSet<MediaFile> MediaFiles { get; set; } = null!;
+    public DbSet<MediaSection> MediaSections { get; set; } = null!;
+    public DbSet<Appointment> Appointments { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -54,15 +60,11 @@ public class PowersportsDbContext : DbContext
             entity.HasIndex(e => e.Name).IsUnique();
         });
 
-        // Configure ProductImage entity
+        // Configure ProductImage entity (junction table with MediaFile)
         modelBuilder.Entity<ProductImage>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.FileName).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.OriginalName).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.FilePath).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.ThumbnailPath).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.MimeType).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.MediaFileId).IsRequired();
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
             
             // Configure relationship with Product
@@ -71,19 +73,23 @@ public class PowersportsDbContext : DbContext
                   .HasForeignKey(e => e.ProductId)
                   .OnDelete(DeleteBehavior.Cascade);
             
+            // Configure relationship with MediaFile
+            entity.HasOne(e => e.MediaFile)
+                  .WithMany()
+                  .HasForeignKey(e => e.MediaFileId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            
             entity.HasIndex(e => e.ProductId);
+            entity.HasIndex(e => e.MediaFileId);
             entity.HasIndex(e => new { e.ProductId, e.IsMain });
+            entity.HasIndex(e => new { e.ProductId, e.SortOrder });
         });
 
-        // Configure CategoryImage entity
+        // Configure CategoryImage entity (junction table with MediaFile)
         modelBuilder.Entity<CategoryImage>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.FileName).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.OriginalName).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.FilePath).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.ThumbnailPath).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.MimeType).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.MediaFileId).IsRequired();
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
             
             // Configure relationship with Category (one-to-one)
@@ -92,7 +98,14 @@ public class PowersportsDbContext : DbContext
                   .HasForeignKey<CategoryImage>(e => e.CategoryId)
                   .OnDelete(DeleteBehavior.Cascade);
             
+            // Configure relationship with MediaFile
+            entity.HasOne(e => e.MediaFile)
+                  .WithMany()
+                  .HasForeignKey(e => e.MediaFileId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            
             entity.HasIndex(e => e.CategoryId).IsUnique();
+            entity.HasIndex(e => e.MediaFileId);
         });
 
         // Configure User entity
@@ -147,6 +160,137 @@ public class PowersportsDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.LastModifiedBy)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Configure ContactSubmission entity
+        modelBuilder.Entity<ContactSubmission>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Email).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Subject).HasMaxLength(200);
+            entity.Property(e => e.Message).IsRequired();
+            entity.Property(e => e.AdminNotes).HasMaxLength(1000);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            
+            // Configure relationship with assigned user
+            entity.HasOne(e => e.AssignedToUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.AssignedToUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+                  
+            // Index for status queries
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.CreatedAt);
+        });
+
+        // Configure Order entity
+        modelBuilder.Entity<Order>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.OrderNumber).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.CustomerName).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.CustomerEmail).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.CustomerPhone).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.ShippingAddress).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.ShippingCity).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.ShippingState).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.ShippingZipCode).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.ShippingCountry).HasMaxLength(100);
+            entity.Property(e => e.Subtotal).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.TaxAmount).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.ShippingCost).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.TotalAmount).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.TrackingNumber).HasMaxLength(100);
+            entity.Property(e => e.ShippingCarrier).HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+            
+            // Configure relationship with User
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+                  
+            // Unique order number
+            entity.HasIndex(e => e.OrderNumber).IsUnique();
+            
+            // Indexes for queries
+            entity.HasIndex(e => e.OrderStatus);
+            entity.HasIndex(e => e.PaymentStatus);
+            entity.HasIndex(e => e.CreatedAt);
+        });
+
+        // Configure OrderItem entity
+        modelBuilder.Entity<OrderItem>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ProductName).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.ProductSku).HasMaxLength(100);
+            entity.Property(e => e.UnitPrice).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.TotalPrice).HasColumnType("decimal(18,2)");
+            
+            // Configure relationship with Order
+            entity.HasOne(e => e.Order)
+                  .WithMany(o => o.Items)
+                  .HasForeignKey(e => e.OrderId)
+                  .OnDelete(DeleteBehavior.Cascade);
+                  
+            // Configure relationship with Product
+            entity.HasOne(e => e.Product)
+                  .WithMany()
+                  .HasForeignKey(e => e.ProductId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure MediaFile entity
+        modelBuilder.Entity<MediaFile>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.FileName).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.StoredFileName).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.FilePath).IsRequired().HasMaxLength(1000);
+            entity.Property(e => e.ThumbnailPath).HasMaxLength(1000);
+            entity.Property(e => e.MimeType).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.AltText).HasMaxLength(500);
+            entity.Property(e => e.Caption).HasMaxLength(1000);
+            entity.Property(e => e.Tags).HasMaxLength(500);
+            entity.Property(e => e.MediaType).HasConversion<int>();
+            entity.Property(e => e.UploadedAt).HasDefaultValueSql("GETUTCDATE()");
+            
+            // Configure relationship with User
+            entity.HasOne(e => e.UploadedByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.UploadedByUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            
+            // Configure relationship with MediaSection
+            entity.HasOne(e => e.Section)
+                  .WithMany(s => s.MediaFiles)
+                  .HasForeignKey(e => e.SectionId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasIndex(e => e.MediaType);
+            entity.HasIndex(e => e.SectionId);
+            entity.HasIndex(e => e.UploadedAt);
+        });
+
+        // Configure MediaSection entity
+        modelBuilder.Entity<MediaSection>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            
+            // Configure relationship with Category (optional)
+            entity.HasOne(e => e.Category)
+                  .WithMany()
+                  .HasForeignKey(e => e.CategoryId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasIndex(e => e.Name).IsUnique();
+            entity.HasIndex(e => e.CategoryId);
         });
 
         // Seed data

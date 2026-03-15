@@ -16,6 +16,30 @@ const router = createRouter({
       component: () => import('@/views/Catalog.vue'),
       meta: { requiresAuth: true }
     },
+    {
+      path: '/inquiries',
+      name: 'inquiries',
+      component: () => import('@/views/Inquiries.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/orders',
+      name: 'orders',
+      component: () => import('@/views/Orders.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/calendar',
+      name: 'calendar',
+      component: () => import('@/views/Calendar.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/media',
+      name: 'media',
+      component: () => import('@/views/MediaLibrary.vue'),
+      meta: { requiresAuth: true }
+    },
     // Redirect old routes to new combined catalog
     {
       path: '/products',
@@ -29,6 +53,12 @@ const router = createRouter({
       path: '/users',
       name: 'users',
       component: () => import('@/views/Users.vue'),
+      meta: { requiresAuth: true, requiresSuperAdmin: true }
+    },
+    {
+      path: '/backup',
+      name: 'backup',
+      component: () => import('@/views/Backup.vue'),
       meta: { requiresAuth: true, requiresSuperAdmin: true }
     },
     {
@@ -55,8 +85,8 @@ const router = createRouter({
 router.beforeEach(async (to: RouteLocationNormalized, _from: RouteLocationNormalized, next: Function) => {
   const authStore = useAuthStore()
   
-  // Initialize auth state if not done yet
-  if (!authStore.isAuthenticated && !to.query.token) {
+  // Initialize auth state if not done yet (will check for token in URL)
+  if (!authStore.isAuthenticated) {
     await authStore.initializeAuth()
   }
 

@@ -111,17 +111,29 @@
         </main>
       </div>
     </div>
+    
+    <!-- Product Details Modal -->
+    <ProductModal
+      :is-open="isModalOpen"
+      :product="selectedProduct"
+      @close="closeModal"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import ProductCard from '@/components/ProductCard.vue';
+import ProductModal from '@/components/ProductModal.vue';
 import { productService, categoryService } from '@/services/api';
 import type { Product, Category } from '@/types';
 import { useSettings } from '@/composables/useSettings';
+import { logDebug } from '@/services/logger';
 
 const { getSetting } = useSettings();
+const route = useRoute();
+const router = useRouter();
 
 // Reactive data
 const products = ref<Product[]>([]);
@@ -131,6 +143,10 @@ const error = ref<string | null>(null);
 const selectedCategory = ref<string>('');
 const searchQuery = ref<string>('');
 const sortBy = ref<string>('featured');
+
+// Modal state
+const isModalOpen = ref(false);
+const selectedProduct = ref<Product | null>(null);
 
 // Computed properties
 const sortedAndFilteredProducts = computed(() => {
@@ -187,8 +203,36 @@ const loadProducts = async () => {
       productService.getAllProducts(),
       categoryService.getAllCategories()
     ]);
+    logDebug('Products loaded from API', { 
+      count: productsData.length,
+      withSpecifications: productsData.filter(p => p.specifications).length
+    });
     products.value = productsData;
     categories.value = categoriesData;
+    
+    // Initialize filters from URL query parameters
+    const categoryParam = route.query.category as string;
+    const searchParam = route.query.search as string;
+    const sortParam = route.query.sort as string;
+    
+    if (categoryParam) {
+      // Support both category name and ID from URL
+      const matchedCategory = categoriesData.find(
+        cat => cat.name.toLowerCase() === categoryParam.toLowerCase() || 
+               cat.id.toString() === categoryParam
+      );
+      if (matchedCategory) {
+        selectedCategory.value = matchedCategory.name;
+      }
+    }
+    
+    if (searchParam) {
+      searchQuery.value = searchParam;
+    }
+    
+    if (sortParam) {
+      sortBy.value = sortParam;
+    }
   } catch (err) {
     error.value = 'Failed to load products. Please try again later.';
   } finally {
@@ -200,13 +244,44 @@ const resetFilters = () => {
   selectedCategory.value = '';
   searchQuery.value = '';
   sortBy.value = 'featured';
+  router.replace({ query: {} }); // Clear URL parameters
 };
 
 const handleViewDetails = (product: Product) => {
-  // For now, just show an alert with product details
-  // In a real app, you would navigate to a product detail page
-  alert(`Product: ${product.name}\nPrice: $${product.price.toFixed(2)}\nCategory: ${product.category}`);
+  logDebug('Opening product modal', {
+    productId: product.id,
+    productName: product.name,
+    hasSpecifications: !!product.specifications
+  });
+  selectedProduct.value = product;
+  isModalOpen.value = true;
 };
+
+const closeModal = () => {
+  isModalOpen.value = false;
+  // Delay clearing the product to allow modal animation to complete
+  setTimeout(() => {
+    selectedProduct.value = null;
+  }, 300);
+};
+
+// Watch for filter changes and update URL
+watch([selectedCategory, searchQuery, sortBy], () => {
+  const query: Record<string, string> = {};
+  
+  if (selectedCategory.value) {
+    query.category = selectedCategory.value;
+  }
+  if (searchQuery.value) {
+    query.search = searchQuery.value;
+  }
+  if (sortBy.value !== 'featured') {
+    query.sort = sortBy.value;
+  }
+  
+  // Update URL without triggering navigation
+  router.replace({ query });
+});
 
 // Load data on component mount
 onMounted(() => {

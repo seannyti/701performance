@@ -22,6 +22,67 @@ namespace PowersportsApi.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("PowersportsApi.Models.Appointment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CustomerEmail")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CustomerPhone")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("EndTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ServiceType")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("StartTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Appointments");
+                });
+
             modelBuilder.Entity("PowersportsApi.Models.Category", b =>
                 {
                     b.Property<int>("Id")
@@ -68,47 +129,47 @@ namespace PowersportsApi.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(718),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(86),
                             Description = "All-Terrain Vehicles for work and recreation",
                             IsActive = true,
                             Name = "ATV",
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(718)
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(86)
                         },
                         new
                         {
                             Id = 2,
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(720),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(88),
                             Description = "Motorcycles designed for off-road terrain",
                             IsActive = true,
                             Name = "Dirtbike",
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(720)
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(88)
                         },
                         new
                         {
                             Id = 3,
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(722),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(90),
                             Description = "Utility Task Vehicles for heavy-duty work",
                             IsActive = true,
                             Name = "UTV",
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(722)
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(90)
                         },
                         new
                         {
                             Id = 4,
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(723),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(91),
                             Description = "Winter vehicles for snow terrain",
                             IsActive = true,
                             Name = "Snowmobile",
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(724)
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(91)
                         },
                         new
                         {
                             Id = 5,
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(726),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(93),
                             Description = "Safety gear and accessories",
                             IsActive = true,
                             Name = "Gear",
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(726)
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(93)
                         });
                 });
 
@@ -128,40 +189,371 @@ namespace PowersportsApi.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
 
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("FilePath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<long>("FileSize")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("MimeType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("OriginalName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("ThumbnailPath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                    b.Property<int>("MediaFileId")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId")
                         .IsUnique();
 
+                    b.HasIndex("MediaFileId");
+
                     b.ToTable("CategoryImages");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.ContactSubmission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdminNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("AssignedToUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedToUserId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("ContactSubmissions");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.MediaFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AltText")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Caption")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("Height")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MediaType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("SectionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ThumbnailPath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<int?>("UploadedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Width")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaType");
+
+                    b.HasIndex("SectionId");
+
+                    b.HasIndex("UploadedAt");
+
+                    b.HasIndex("UploadedByUserId");
+
+                    b.ToTable("MediaFiles");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.MediaSection", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("MediaSections");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.Order", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdminNotes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("CustomerEmail")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CustomerNotes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CustomerPhone")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("DeliveredDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("OrderStatus")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PaymentMethod")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PaymentNotes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("PaymentReceivedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PaymentStatus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ShippedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ShippingAddress")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ShippingCarrier")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ShippingCity")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("ShippingCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ShippingCountry")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ShippingState")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ShippingZipCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TrackingNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("OrderNumber")
+                        .IsUnique();
+
+                    b.HasIndex("OrderStatus");
+
+                    b.HasIndex("PaymentStatus");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Orders");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.OrderItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ProductSku")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("OrderItems");
                 });
 
             modelBuilder.Entity("PowersportsApi.Models.Product", b =>
@@ -214,6 +606,9 @@ namespace PowersportsApi.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("Specifications")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("StockQuantity")
                         .HasColumnType("int");
 
@@ -242,31 +637,11 @@ namespace PowersportsApi.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
 
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("FilePath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<long>("FileSize")
-                        .HasColumnType("bigint");
-
                     b.Property<bool>("IsMain")
                         .HasColumnType("bit");
 
-                    b.Property<string>("MimeType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("OriginalName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                    b.Property<int>("MediaFileId")
+                        .HasColumnType("int");
 
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
@@ -274,16 +649,15 @@ namespace PowersportsApi.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 
-                    b.Property<string>("ThumbnailPath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
                     b.HasKey("Id");
+
+                    b.HasIndex("MediaFileId");
 
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ProductId", "IsMain");
+
+                    b.HasIndex("ProductId", "SortOrder");
 
                     b.ToTable("ProductImages");
                 });
@@ -392,7 +766,7 @@ namespace PowersportsApi.Migrations
                         {
                             Id = 1,
                             Category = "General",
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(818),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(176),
                             Description = "The main company name displayed throughout the website",
                             DisplayName = "Company Name",
                             IsActive = true,
@@ -400,14 +774,14 @@ namespace PowersportsApi.Migrations
                             Key = "site_name",
                             SortOrder = 1,
                             Type = 0,
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(818),
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(176),
                             Value = "701 Performance Power"
                         },
                         new
                         {
                             Id = 2,
                             Category = "General",
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(821),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(178),
                             Description = "Brief tagline or motto displayed in headers and hero sections",
                             DisplayName = "Company Tagline",
                             IsActive = true,
@@ -415,14 +789,14 @@ namespace PowersportsApi.Migrations
                             Key = "site_tagline",
                             SortOrder = 2,
                             Type = 0,
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(821),
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(179),
                             Value = "Your Gateway to Adventure"
                         },
                         new
                         {
                             Id = 3,
                             Category = "General",
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(823),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(180),
                             Description = "Main contact email address",
                             DisplayName = "Contact Email",
                             IsActive = true,
@@ -430,14 +804,14 @@ namespace PowersportsApi.Migrations
                             Key = "contact_email",
                             SortOrder = 3,
                             Type = 3,
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(823),
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(180),
                             Value = "info@701performancepower.com"
                         },
                         new
                         {
                             Id = 4,
                             Category = "General",
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(825),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(182),
                             Description = "Primary phone number for customer contact",
                             DisplayName = "Contact Phone",
                             IsActive = true,
@@ -445,14 +819,14 @@ namespace PowersportsApi.Migrations
                             Key = "contact_phone",
                             SortOrder = 4,
                             Type = 4,
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(825),
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(182),
                             Value = ""
                         },
                         new
                         {
                             Id = 5,
                             Category = "General",
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(827),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(184),
                             Description = "Physical business address",
                             DisplayName = "Business Address",
                             IsActive = true,
@@ -460,14 +834,14 @@ namespace PowersportsApi.Migrations
                             Key = "contact_address",
                             SortOrder = 5,
                             Type = 1,
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(827),
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(184),
                             Value = ""
                         },
                         new
                         {
                             Id = 6,
                             Category = "General",
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(828),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(186),
                             Description = "Main heading on the homepage hero section",
                             DisplayName = "Homepage Hero Title",
                             IsActive = true,
@@ -475,14 +849,14 @@ namespace PowersportsApi.Migrations
                             Key = "hero_title",
                             SortOrder = 6,
                             Type = 0,
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(829),
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(186),
                             Value = "Discover Your Next Adventure"
                         },
                         new
                         {
                             Id = 7,
                             Category = "General",
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(830),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(188),
                             Description = "Subtitle text below the hero title",
                             DisplayName = "Homepage Hero Subtitle",
                             IsActive = true,
@@ -490,14 +864,14 @@ namespace PowersportsApi.Migrations
                             Key = "hero_subtitle",
                             SortOrder = 7,
                             Type = 1,
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(831),
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(188),
                             Value = "Premium powersports vehicles and gear for every adventure seeker"
                         },
                         new
                         {
                             Id = 8,
                             Category = "Security",
-                            CreatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(832),
+                            CreatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(190),
                             Description = "Whether new users can register on the site",
                             DisplayName = "Allow User Registration",
                             IsActive = true,
@@ -505,7 +879,7 @@ namespace PowersportsApi.Migrations
                             Key = "allow_user_registration",
                             SortOrder = 1,
                             Type = 7,
-                            UpdatedAt = new DateTime(2026, 3, 2, 5, 36, 42, 862, DateTimeKind.Utc).AddTicks(832),
+                            UpdatedAt = new DateTime(2026, 3, 14, 18, 22, 42, 123, DateTimeKind.Utc).AddTicks(190),
                             Value = "true"
                         });
                 });
@@ -591,6 +965,23 @@ namespace PowersportsApi.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("PowersportsApi.Models.Appointment", b =>
+                {
+                    b.HasOne("PowersportsApi.Models.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PowersportsApi.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("PowersportsApi.Models.CategoryImage", b =>
                 {
                     b.HasOne("PowersportsApi.Models.Category", "Category")
@@ -599,7 +990,81 @@ namespace PowersportsApi.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PowersportsApi.Models.MediaFile", "MediaFile")
+                        .WithMany()
+                        .HasForeignKey("MediaFileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Category");
+
+                    b.Navigation("MediaFile");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.ContactSubmission", b =>
+                {
+                    b.HasOne("PowersportsApi.Models.User", "AssignedToUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedToUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AssignedToUser");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.MediaFile", b =>
+                {
+                    b.HasOne("PowersportsApi.Models.MediaSection", "Section")
+                        .WithMany("MediaFiles")
+                        .HasForeignKey("SectionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("PowersportsApi.Models.User", "UploadedByUser")
+                        .WithMany()
+                        .HasForeignKey("UploadedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Section");
+
+                    b.Navigation("UploadedByUser");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.MediaSection", b =>
+                {
+                    b.HasOne("PowersportsApi.Models.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.Order", b =>
+                {
+                    b.HasOne("PowersportsApi.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.OrderItem", b =>
+                {
+                    b.HasOne("PowersportsApi.Models.Order", "Order")
+                        .WithMany("Items")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PowersportsApi.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("PowersportsApi.Models.Product", b =>
@@ -615,11 +1080,19 @@ namespace PowersportsApi.Migrations
 
             modelBuilder.Entity("PowersportsApi.Models.ProductImage", b =>
                 {
+                    b.HasOne("PowersportsApi.Models.MediaFile", "MediaFile")
+                        .WithMany()
+                        .HasForeignKey("MediaFileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PowersportsApi.Models.Product", "Product")
                         .WithMany("ProductImages")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("MediaFile");
 
                     b.Navigation("Product");
                 });
@@ -650,6 +1123,16 @@ namespace PowersportsApi.Migrations
                     b.Navigation("CategoryImage");
 
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.MediaSection", b =>
+                {
+                    b.Navigation("MediaFiles");
+                });
+
+            modelBuilder.Entity("PowersportsApi.Models.Order", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("PowersportsApi.Models.Product", b =>

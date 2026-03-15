@@ -11,9 +11,8 @@
         </button>
       </div>
 
-    <div v-if="loading" class="loading-state">
+    <div v-if="isLoading" class="loading-overlay">
       <div class="spinner"></div>
-      <p>Loading categories...</p>
     </div>
 
     <div v-else-if="error" class="error-state">
@@ -49,7 +48,9 @@
           <button 
             @click="toggleCategoryStatus(category)" 
             :class="['btn', 'btn-sm', category.isActive ? 'btn-warning' : 'btn-success']"
+            :disabled="isActionLoading(`toggleCategory-${category.id}`)"
           >
+            <span v-if="isActionLoading(`toggleCategory-${category.id}`)" class="btn-spinner"></span>
             {{ category.isActive ? 'Disable' : 'Enable' }}
           </button>
           <button 
@@ -122,8 +123,9 @@
             <button type="button" @click="closeModal" class="btn btn-secondary">
               Cancel
             </button>
-            <button type="submit" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Category' }}
+            <button type="submit" class="btn btn-primary" :disabled="isActionLoading('saveCategory')">
+              <span v-if="isActionLoading('saveCategory')" class="btn-spinner"></span>
+              {{ isActionLoading('saveCategory') ? 'Saving...' : 'Save Category' }}
             </button>
           </div>
         </form>
@@ -146,8 +148,9 @@
             <button @click="showDeleteModal = false" class="btn btn-secondary">
               Cancel
             </button>
-            <button @click="deleteCategory" class="btn btn-danger" :disabled="deleting">
-              {{ deleting ? 'Deleting...' : 'Delete' }}
+            <button @click="deleteCategory" class="btn btn-danger" :disabled="isActionLoading('deleteCategory')">
+              <span v-if="isActionLoading('deleteCategory')" class="btn-spinner"></span>
+              {{ isActionLoading('deleteCategory') ? 'Deleting...' : 'Delete' }}
             </button>
           </div>
         </div>
@@ -161,6 +164,9 @@
 import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
+import { useLoadingState } from '@/composables/useLoadingState'
+import { API_URL } from '@/utils/api-config'
 
 interface Category {
   id: number
@@ -179,19 +185,17 @@ interface Product {
 }
 
 const authStore = useAuthStore()
-const API_URL = 'http://localhost:5226/api/v1'
+const toast = useToast()
+const { isLoading, executeWithLoading, isActionLoading } = useLoadingState()
 
 const categories = ref<Category[]>([])
 const products = ref<Product[]>([])
-const loading = ref(true)
 const error = ref('')
 const showModal = ref(false)
 const editingCategory = ref<Category | null>(null)
-const saving = ref(false)
 const formError = ref('')
 const showDeleteModal = ref(false)
 const categoryToDelete = ref<Category | null>(null)
-const deleting = ref(false)
 
 const form = ref({
   name: '',
@@ -217,29 +221,28 @@ const formatDate = (dateString: string) => {
 }
 
 const loadCategories = async () => {
-  loading.value = true
-  error.value = ''
-  
-  try {
-    const [categoriesRes, productsRes] = await Promise.all([
-      fetch(`${API_URL}/categories?includeInactive=true`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      }),
-      fetch(`${API_URL}/products`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      })
-    ])
+  await executeWithLoading(async () => {
+    error.value = ''
+    
+    try {
+      const [categoriesRes, productsRes] = await Promise.all([
+        fetch(`${API_URL}/categories?includeInactive=true`, {
+          headers: { 'Authorization': `Bearer ${authStore.token}` }
+        }),
+        fetch(`${API_URL}/products`, {
+          headers: { 'Authorization': `Bearer ${authStore.token}` }
+        })
+      ])
 
-    if (!categoriesRes.ok) throw new Error('Failed to load categories')
-    if (!productsRes.ok) throw new Error('Failed to load products')
+      if (!categoriesRes.ok) throw new Error('Failed to load categories')
+      if (!productsRes.ok) throw new Error('Failed to load products')
 
-    categories.value = await categoriesRes.json()
-    products.value = await productsRes.json()
-  } catch (err: any) {
-    error.value = err.message || 'Failed to load data'
-  } finally {
-    loading.value = false
-  }
+      categories.value = await categoriesRes.json()
+      products.value = await productsRes.json()
+    } catch (err: any) {
+      error.value = err.message || 'Failed to load data'
+    }
+  })
 }
 
 const openCreateModal = () => {
@@ -287,59 +290,61 @@ const validateForm = () => {
 const saveCategory = async () => {
   if (!validateForm()) return
   
-  saving.value = true
-  formError.value = ''
-  
-  try {
-    const url = editingCategory.value 
-      ? `${API_URL}/categories/${editingCategory.value.id}`
-      : `${API_URL}/categories`
+  await executeWithLoading(async () => {
+    formError.value = ''
     
-    const method = editingCategory.value ? 'PUT' : 'POST'
-    
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authStore.token}`
-      },
-      body: JSON.stringify(form.value)
-    })
+    try {
+      const url = editingCategory.value 
+        ? `${API_URL}/categories/${editingCategory.value.id}`
+        : `${API_URL}/categories`
+      
+      const method = editingCategory.value ? 'PUT' : 'POST'
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authStore.token}`
+        },
+        body: JSON.stringify(form.value)
+      })
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || 'Failed to save category')
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to save category')
+      }
+
+      await loadCategories()
+      closeModal()
+    } catch (err: any) {
+      formError.value = err.message || 'Failed to save category'
     }
-
-    await loadCategories()
-    closeModal()
-  } catch (err: any) {
-    formError.value = err.message || 'Failed to save category'
-  } finally {
-    saving.value = false
-  }
+  }, 'saveCategory')
 }
 
 const toggleCategoryStatus = async (category: Category) => {
-  try {
-    const response = await fetch(`${API_URL}/categories/${category.id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authStore.token}`
-      },
-      body: JSON.stringify({
-        ...category,
-        isActive: !category.isActive
+  await executeWithLoading(async () => {
+    try {
+      const response = await fetch(`${API_URL}/categories/${category.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authStore.token}`
+        },
+        body: JSON.stringify({
+          ...category,
+          isActive: !category.isActive
+        })
       })
-    })
 
-    if (!response.ok) throw new Error('Failed to update category status')
+      if (!response.ok) throw new Error('Failed to update category status')
 
-    await loadCategories()
-  } catch (err: any) {
-    alert(err.message || 'Failed to update category')
-  }
+      await loadCategories()
+      toast.success('Category status updated')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update category')
+    }
+  }, `toggleCategory-${category.id}`)
 }
 
 const confirmDelete = (category: Category) => {
@@ -350,29 +355,28 @@ const confirmDelete = (category: Category) => {
 const deleteCategory = async () => {
   if (!categoryToDelete.value) return
   
-  deleting.value = true
-  
-  try {
-    const response = await fetch(`${API_URL}/categories/${categoryToDelete.value.id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${authStore.token}`
+  await executeWithLoading(async () => {
+    try {
+      const response = await fetch(`${API_URL}/categories/${categoryToDelete.value.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authStore.token}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to delete category')
       }
-    })
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || 'Failed to delete category')
+      await loadCategories()
+      showDeleteModal.value = false
+      categoryToDelete.value = null
+      toast.deleteSuccess('Category')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete category')
     }
-
-    await loadCategories()
-    showDeleteModal.value = false
-    categoryToDelete.value = null
-  } catch (err: any) {
-    alert(err.message || 'Failed to delete category')
-  } finally {
-    deleting.value = false
-  }
+  }, 'deleteCategory')
 }
 
 onMounted(() => {

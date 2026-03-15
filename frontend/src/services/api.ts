@@ -2,6 +2,7 @@ import axios from 'axios';
 import type { Product } from '@/types';
 import { logApi, logError } from './logger';
 import { apiCache } from './cache';
+import { API_TIMEOUT_MS } from '@/constants';
 
 // API base URL - configurable for different environments
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5226';
@@ -9,7 +10,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5226';
 // Create axios instance with default configuration
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: API_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json',
   },

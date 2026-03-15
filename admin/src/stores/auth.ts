@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User, AuthResponse } from '@/types'
 
-const API_URL = 'http://localhost:5226/api/v1'
+const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5226'}/api/v1`
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem('admin_token'))
@@ -10,8 +10,8 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
-  const isAdmin = computed(() => user.value?.role === 1 || user.value?.role === 2) // Admin or SuperAdmin
-  const isSuperAdmin = computed(() => user.value?.role === 2) // SuperAdmin only
+  const isAdmin = computed(() => user.value?.role === 'Admin' || user.value?.role === 'SuperAdmin' || user.value?.role === 1 || user.value?.role === 2) // Admin or SuperAdmin
+  const isSuperAdmin = computed(() => user.value?.role === 'SuperAdmin' || user.value?.role === 2) // SuperAdmin only
   const hasAdminAccess = computed(() => isAdmin.value || isSuperAdmin.value)
 
   // Check for token in URL parameters (for auto-login from main site)
@@ -72,8 +72,9 @@ export const useAuthStore = defineStore('auth', () => {
     const userData = await response.json()
     user.value = userData
     
-    // Verify user has admin access
-    if (!userData.role || userData.role < 1) {
+    // Verify user has admin access (check both string and numeric role values)
+    const role = userData.role
+    if (!role || (role !== 'Admin' && role !== 'SuperAdmin' && role !== 1 && role !== 2)) {
       throw new Error('Insufficient permissions for admin dashboard')
     }
   }
@@ -94,8 +95,9 @@ export const useAuthStore = defineStore('auth', () => {
 
     const authData: AuthResponse = await response.json()
     
-    // Verify user has admin access
-    if (!authData.user.role || authData.user.role < 1) {
+    // Verify user has admin access (check both string and numeric role values)
+    const role = authData.user.role
+    if (!role || (role !== 'Admin' && role !== 'SuperAdmin' && role !== 1 && role !== 2)) {
       throw new Error('Insufficient permissions for admin dashboard')
     }
 

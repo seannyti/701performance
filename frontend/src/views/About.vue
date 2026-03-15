@@ -15,21 +15,18 @@
           <div class="content-text">
             <h2 class="section-title">Our Story</h2>
             <p class="text-content">
-              Founded with a passion for adventure and the great outdoors, Powersports Gear & Vehicles 
-              has been serving the powersports community for over a decade. We specialize in high-quality 
-              ATVs, dirt bikes, UTVs, snowmobiles, and gear for adventure seekers who demand the best.
+              {{ getSetting('about_story_paragraph1', 'Founded with a passion for adventure and the great outdoors, Powersports Gear & Vehicles has been serving the powersports community for over a decade.') }}
             </p>
             <p class="text-content">
-              Our journey began when our founder, an avid off-road enthusiast, recognized the need for 
-              a reliable source of premium powersports equipment. Today, we've grown into a trusted name 
-              in the industry, serving customers across the country with top-tier products and exceptional service.
+              {{ getSetting('about_story_paragraph2', 'Our journey began when our founder, an avid off-road enthusiast, recognized the need for a reliable source of premium powersports equipment.') }}
             </p>
           </div>
           <div class="content-image">
             <img 
-              src="https://images.unsplash.com/photo-1558618047-6c0c841469ed?w=600&h=400&fit=crop" 
+              :src="storyImage" 
               alt="Our showroom with various powersports vehicles"
               loading="lazy"
+              @error="handleStoryImageError"
             />
           </div>
         </div>
@@ -40,38 +37,27 @@
         <div class="content-grid reverse">
           <div class="content-image">
             <img 
-              src="https://images.unsplash.com/photo-1591737622611-b6c5ae78542d?w=600&h=400&fit=crop" 
+              :src="missionImage" 
               alt="Adventure riders exploring trails"
               loading="lazy"
+              @error="handleMissionImageError"
             />
           </div>
           <div class="content-text">
             <h2 class="section-title">Our Mission</h2>
             <p class="text-content">
-              To empower outdoor enthusiasts with the finest powersports vehicles and gear, 
-              ensuring every adventure is safe, thrilling, and unforgettable. We believe that 
-              the right equipment doesn't just enhance your experience—it transforms it.
+              {{ getSetting('about_mission_text', 'To empower outdoor enthusiasts with the finest powersports vehicles and gear, ensuring every adventure is safe, thrilling, and unforgettable.') }}
             </p>
             <div class="mission-points">
-              <div class="mission-point">
-                <div class="point-icon">🎯</div>
+              <div 
+                v-for="(point, index) in missionPoints" 
+                :key="index" 
+                class="mission-point"
+              >
+                <div class="point-icon">{{ point.icon }}</div>
                 <div>
-                  <h4>Quality First</h4>
-                  <p>We partner only with trusted manufacturers who share our commitment to excellence.</p>
-                </div>
-              </div>
-              <div class="mission-point">
-                <div class="point-icon">🤝</div>
-                <div>
-                  <h4>Customer Focus</h4>
-                  <p>Your satisfaction drives everything we do, from product selection to after-sales support.</p>
-                </div>
-              </div>
-              <div class="mission-point">
-                <div class="point-icon">🌟</div>
-                <div>
-                  <h4>Innovation</h4>
-                  <p>We stay ahead of industry trends to bring you the latest and greatest in powersports technology.</p>
+                  <h4>{{ point.title }}</h4>
+                  <p>{{ point.description }}</p>
                 </div>
               </div>
             </div>
@@ -84,28 +70,15 @@
         <div class="values-container">
           <h2 class="section-title text-center">Our Values</h2>
           <div class="grid grid-3">
-            <div class="value-card">
-              <div class="value-icon">🛡️</div>
-              <h3 class="value-title">Safety</h3>
+            <div 
+              v-for="(value, index) in values" 
+              :key="index" 
+              class="value-card"
+            >
+              <div class="value-icon">{{ value.icon }}</div>
+              <h3 class="value-title">{{ value.title }}</h3>
               <p class="value-description">
-                Safety is paramount in everything we do. We provide only certified, 
-                tested equipment and comprehensive safety information.
-              </p>
-            </div>
-            <div class="value-card">
-              <div class="value-icon">🌍</div>
-              <h3 class="value-title">Sustainability</h3>
-              <p class="value-description">
-                We're committed to responsible practices that preserve the 
-                natural environments we love to explore.
-              </p>
-            </div>
-            <div class="value-card">
-              <div class="value-icon">🚀</div>
-              <h3 class="value-title">Performance</h3>
-              <p class="value-description">
-                We deliver products that perform when it matters most, 
-                built to handle any terrain and weather condition.
+                {{ value.description }}
               </p>
             </div>
           </div>
@@ -121,51 +94,23 @@
           </p>
           
           <div class="grid grid-3">
-            <div class="team-member">
+            <div 
+              v-for="(member, index) in teamMembers" 
+              :key="index" 
+              class="team-member"
+            >
               <div class="member-image">
                 <img 
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&crop=face" 
-                  alt="Team member"
+                  :src="member.imageUrl" 
+                  :alt="member.name"
                   loading="lazy"
+                  @error="handleImageError"
                 />
               </div>
-              <h4 class="member-name">Mike Johnson</h4>
-              <p class="member-role">Founder & CEO</p>
+              <h4 class="member-name">{{ member.name }}</h4>
+              <p class="member-role">{{ member.role }}</p>
               <p class="member-bio">
-                20+ years in powersports with a passion for bringing 
-                the best products to fellow enthusiasts.
-              </p>
-            </div>
-            
-            <div class="team-member">
-              <div class="member-image">
-                <img 
-                  src="https://images.unsplash.com/photo-1494790108755-2616b612b786?w=300&h=300&fit=crop&crop=face" 
-                  alt="Team member"
-                  loading="lazy"
-                />
-              </div>
-              <h4 class="member-name">Sarah Williams</h4>
-              <p class="member-role">Head of Sales</p>
-              <p class="member-bio">
-                Expert in matching customers with the perfect 
-                vehicle for their adventure needs and budget.
-              </p>
-            </div>
-            
-            <div class="team-member">
-              <div class="member-image">
-                <img 
-                  src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=300&fit=crop&crop=face" 
-                  alt="Team member"
-                  loading="lazy"
-                />
-              </div>
-              <h4 class="member-name">Tom Rodriguez</h4>
-              <p class="member-role">Technical Specialist</p>
-              <p class="member-bio">
-                Certified technician ensuring every vehicle meets 
-                our high standards before reaching customers.
+                {{ member.bio }}
               </p>
             </div>
           </div>
@@ -194,9 +139,108 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useSettings } from '@/composables/useSettings';
+import { logError } from '@/services/logger';
+import { getMediaUrl } from '@/utils/api-config';
 
 const { getSetting } = useSettings();
+
+// Helper function to fix relative URLs and handle empty values
+const fixImageUrl = (url: string | null | undefined, defaultUrl: string) => {
+  // If empty, null, undefined, or just whitespace, return default
+  if (!url || typeof url !== 'string' || url.trim() === '') {
+    return defaultUrl;
+  }
+  // If relative URL, prepend API URL
+  if (url.startsWith('/uploads')) {
+    return getMediaUrl(url);
+  }
+  // Return as-is (absolute URL or default)
+  return url;
+};
+
+// Default images
+const DEFAULT_STORY_IMAGE = 'https://images.unsplash.com/photo-1558618047-6c0c841469ed?w=600&h=400&fit=crop';
+const DEFAULT_MISSION_IMAGE = 'https://images.unsplash.com/photo-1591737622611-b6c5ae78542d?w=600&h=400&fit=crop';
+
+// Get images with URL fixing
+const storyImage = computed(() => {
+  const url = getSetting('about_story_image', '');
+  return fixImageUrl(url, DEFAULT_STORY_IMAGE);
+});
+
+const missionImage = computed(() => {
+  const url = getSetting('about_mission_image', '');
+  return fixImageUrl(url, DEFAULT_MISSION_IMAGE);
+});
+
+// Parse mission points from settings
+const missionPoints = computed(() => {
+  try {
+    const pointsJson = getSetting('about_mission_points', '[]');
+    return JSON.parse(pointsJson);
+  } catch {
+    return [
+      { icon: '🎯', title: 'Quality First', description: 'We partner only with trusted manufacturers who share our commitment to excellence.' },
+      { icon: '🤝', title: 'Customer Focus', description: 'Your satisfaction drives everything we do, from product selection to after-sales support.' },
+      { icon: '🌟', title: 'Innovation', description: 'We stay ahead of industry trends to bring you the latest and greatest in powersports technology.' }
+    ];
+  }
+});
+
+// Parse values from settings
+const values = computed(() => {
+  try {
+    const valuesJson = getSetting('about_values', '[]');
+    return JSON.parse(valuesJson);
+  } catch {
+    return [
+      { icon: '🛡️', title: 'Safety', description: 'Safety is paramount in everything we do. We provide only certified, tested equipment and comprehensive safety information.' },
+      { icon: '🌍', title: 'Sustainability', description: "We're committed to responsible practices that preserve the natural environments we love to explore." },
+      { icon: '🚀', title: 'Performance', description: 'We deliver products that perform when it matters most, built to handle any terrain and weather condition.' }
+    ];
+  }
+});
+
+// Image error handler - fallback to defaults based on alt text
+const imageFallbacks: Record<string, string> = {
+  'team': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&crop=face',
+  'showroom': 'https://images.unsplash.com/photo-1558618047-6c0c841469ed?w=600&h=400&fit=crop',
+  'adventure': 'https://images.unsplash.com/photo-1591737622611-b6c5ae78542d?w=600&h=400&fit=crop'
+};
+
+const handleImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  const alt = img.alt.toLowerCase();
+  img.src = alt.includes('showroom') ? imageFallbacks.showroom
+    : alt.includes('adventure') ? imageFallbacks.adventure
+    : imageFallbacks.team;
+};
+
+const handleStoryImageError = handleImageError;
+const handleMissionImageError = handleImageError;
+
+// Parse team members from settings
+const teamMembers = computed(() => {
+  const DEFAULT_TEAM_IMAGE = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&crop=face';
+  
+  try {
+    const membersJson = getSetting('about_team_members', '[]');
+    const members = JSON.parse(membersJson);
+    return members.map((member: any) => ({
+      ...member,
+      imageUrl: fixImageUrl(member.imageUrl, DEFAULT_TEAM_IMAGE)
+    }));
+  } catch (error) {
+    logError('Error parsing team members', error);
+    return [
+      { name: 'Mike Johnson', role: 'Founder & CEO', bio: '20+ years in powersports with a passion for bringing the best products to fellow enthusiasts.', imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&crop=face' },
+      { name: 'Sarah Williams', role: 'Head of Sales', bio: 'Expert in matching customers with their perfect vehicle, with 15 years of industry experience.', imageUrl: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=300&h=300&fit=crop&crop=face' },
+      { name: 'Tom Rodriguez', role: 'Service Manager', bio: 'Certified technician ensuring every vehicle meets our rigorous quality and safety standards.', imageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&h=300&fit=crop&crop=face' }
+    ];
+  }
+});
 </script>
 
 <style scoped>

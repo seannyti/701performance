@@ -23,9 +23,34 @@
               📦 Catalog
             </router-link>
           </li>
+          <li class="nav-item">
+            <router-link to="/inquiries" class="nav-link" active-class="active">
+              📧 Inquiries
+            </router-link>
+          </li>
+          <li class="nav-item">
+            <router-link to="/orders" class="nav-link" active-class="active">
+              🛒 Orders
+            </router-link>
+          </li>
+          <li class="nav-item">
+            <router-link to="/calendar" class="nav-link" active-class="active">
+              📅 Calendar
+            </router-link>
+          </li>
+          <li class="nav-item">
+            <router-link to="/media" class="nav-link" active-class="active">
+              📁 Media Library
+            </router-link>
+          </li>
           <li class="nav-item" v-if="authStore.isSuperAdmin">
             <router-link to="/users" class="nav-link" active-class="active">
               👥 Users
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="authStore.isSuperAdmin">
+            <router-link to="/backup" class="nav-link" active-class="active">
+              💾 Backup & Restore
             </router-link>
           </li>
           <li class="nav-item">
@@ -58,7 +83,7 @@ const authStore = useAuthStore()
 const handleLogout = () => {
   authStore.logout()
   // Redirect to main site instead of admin login
-  window.location.href = 'http://localhost:5173'
+  window.location.href = 'http://localhost:3000'
 }
 </script>
 

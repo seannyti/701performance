@@ -11,7 +11,7 @@ export default defineConfig({
     }
   },
   server: {
-    port: 5174,  // Different port from main app (5173)
+    port: 5174,  // Admin dashboard port
     open: true
   },
   build: {

@@ -124,16 +124,18 @@ public class ProductService
             if (_useDatabase && await IsDatabaseAvailableAsync())
             {
                 var products = await _context.Products
+                    .Include(p => p.Category)
                     .Include(p => p.ProductImages)
+                        .ThenInclude(pi => pi.MediaFile)
                     .ToListAsync();
                 
                 // Set ImageUrl from main product image if available
                 foreach (var product in products)
                 {
                     var mainImage = product.ProductImages?.FirstOrDefault(pi => pi.IsMain);
-                    if (mainImage != null)
+                    if (mainImage?.MediaFile != null)
                     {
-                        product.ImageUrl = $"/uploads/products/{product.Id}/thumb_{mainImage.FileName}";
+                        product.ImageUrl = mainImage.MediaFile.ThumbnailPath ?? string.Empty;
                     }
                 }
                 
@@ -163,16 +165,18 @@ public class ProductService
             if (_useDatabase && await IsDatabaseAvailableAsync())
             {
                 var product = await _context.Products
+                    .Include(p => p.Category)
                     .Include(p => p.ProductImages)
+                        .ThenInclude(pi => pi.MediaFile)
                     .FirstOrDefaultAsync(p => p.Id == id);
                 
                 // Set ImageUrl from main product image if available
                 if (product != null)
                 {
                     var mainImage = product.ProductImages?.FirstOrDefault(pi => pi.IsMain);
-                    if (mainImage != null)
+                    if (mainImage?.MediaFile != null)
                     {
-                        product.ImageUrl = $"/uploads/products/{product.Id}/thumb_{mainImage.FileName}";
+                        product.ImageUrl = mainImage.MediaFile.ThumbnailPath ?? string.Empty;
                     }
                 }
                 
@@ -236,7 +240,9 @@ public class ProductService
             if (_useDatabase && await IsDatabaseAvailableAsync())
             {
                 var products = await _context.Products
+                    .Include(p => p.Category)
                     .Include(p => p.ProductImages)
+                        .ThenInclude(pi => pi.MediaFile)
                     .Take(3)
                     .ToListAsync();
                 
@@ -244,9 +250,9 @@ public class ProductService
                 foreach (var product in products)
                 {
                     var mainImage = product.ProductImages?.FirstOrDefault(pi => pi.IsMain);
-                    if (mainImage != null)
+                    if (mainImage?.MediaFile != null)
                     {
-                        product.ImageUrl = $"/uploads/products/{product.Id}/thumb_{mainImage.FileName}";
+                        product.ImageUrl = mainImage.MediaFile.ThumbnailPath ?? string.Empty;
                     }
                 }
                 

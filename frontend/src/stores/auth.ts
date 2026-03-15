@@ -36,9 +36,12 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Role checking getters
   const isAdmin = computed(() => 
+    user.value?.role === 'Admin' || user.value?.role === 'SuperAdmin' || 
     user.value?.role === UserRole.Admin || user.value?.role === UserRole.SuperAdmin
   );
-  const isSuperAdmin = computed(() => user.value?.role === UserRole.SuperAdmin);
+  const isSuperAdmin = computed(() => 
+    user.value?.role === 'SuperAdmin' || user.value?.role === UserRole.SuperAdmin
+  );
   const hasAdminAccess = computed(() => isAdmin.value || isSuperAdmin.value);
 
   // Actions

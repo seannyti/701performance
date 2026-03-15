@@ -1,5 +1,6 @@
 import { ref, onUnmounted, computed } from 'vue'
 import { logError, logDebug } from '@/services/logger'
+import { SETTINGS_POLL_INTERVAL_MS } from '@/constants'
 
 interface SiteSetting {
   id: number
@@ -22,7 +23,9 @@ const fetchSettings = async () => {
 
   fetchPromise = (async () => {
     try {
+      logDebug('Fetching settings from API...');
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5226'
+      logDebug('API URL', { url: API_URL });
       const response = await fetch(`${API_URL}/api/v1/settings`)
       
       if (!response.ok) {
@@ -30,6 +33,7 @@ const fetchSettings = async () => {
       }
 
       const data: SiteSetting[] = await response.json()
+      logDebug('Received settings from API', { count: data.length });
       
       // Convert array to key-value map
       const settingsMap: Record<string, string> = {}
@@ -38,6 +42,10 @@ const fetchSettings = async () => {
       })
       
       settings.value = settingsMap
+      logDebug('Settings loaded successfully', { 
+        keysCount: Object.keys(settingsMap).length,
+        samplePrimaryColor: settingsMap['theme_primary_color']
+      });
       error.value = null
     } catch (err: any) {
       logError('Error loading site settings', err);
@@ -103,9 +111,9 @@ const startPolling = () => {
   isPollingStarted = true
   pollingInterval = window.setInterval(() => {
     refetchSettings()
-  }, 30000) // Check every 30 seconds
+  }, SETTINGS_POLL_INTERVAL_MS)
   
-  console.log('✅ Auto-refresh enabled: Settings will update every 30 seconds')
+  logDebug('Auto-refresh enabled: Settings will update every 30 seconds');
 }
 
 // Stop polling
@@ -135,7 +143,9 @@ export function useSettings() {
   })
 
   const getSetting = (key: string, defaultValue: string = ''): string => {
-    return settings.value[key] || defaultValue
+    const value = settings.value[key]
+    // Return default if value is undefined, null, or empty string
+    return (value !== undefined && value !== null && value !== '') ? value : defaultValue
   }
 
   const isMaintenanceMode = computed(() => {

@@ -12,7 +12,7 @@
           <router-link to="/" class="btn">
             🏠 Go to Dashboard
           </router-link>
-          <a href="http://localhost:5173" class="btn btn-secondary">
+          <a href="http://localhost:5174" class="btn btn-secondary">
             ← Back to Main Site
           </a>
         </div>

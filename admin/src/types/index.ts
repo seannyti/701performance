@@ -19,9 +19,7 @@ export type {
 
 export { UserRole } from '@powersports/shared-types';
 
-// ============================================================================
-// ADMIN-SPECIFIC TYPES
-// ============================================================================
+// Admin-Specific Types
 
 // Site settings for dynamic content management
 export interface SiteSetting {
@@ -133,4 +131,60 @@ export interface DashboardStats {
   recentRegistrations: number;
   recentUsers: RecentUser[];
   generatedAt: string;
+}
+
+// Appointments
+export interface Appointment {
+  id: number;
+  startTime: string;
+  endTime: string;
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  serviceType?: string;
+  notes?: string;
+  status: AppointmentStatus;
+  userId?: number;
+  user?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  createdAt: string;
+  updatedAt?: string;
+  createdBy?: {
+    firstName: string;
+    lastName: string;
+  };
+}
+
+export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Cancelled' | 'NoShow';
+
+export interface CreateAppointmentRequest {
+  startTime: string;
+  endTime: string;
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  serviceType?: string;
+  notes?: string;
+  userId?: number;
+}
+
+export interface UpdateAppointmentRequest extends CreateAppointmentRequest {
+  status: AppointmentStatus;
+}
+
+export interface UpdateAppointmentStatusRequest {
+  status: AppointmentStatus;
+}
+
+export interface AppointmentUser {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  fullName: string;
 }

@@ -120,6 +120,14 @@
                 </div>
               </router-link>
 
+              <router-link to="/media" class="action-tile">
+                <span class="action-icon" style="background: #fce7f3;">🖼️</span>
+                <div>
+                  <div class="action-title">Media Library</div>
+                  <div class="action-desc">Upload and manage product images</div>
+                </div>
+              </router-link>
+
               <router-link to="/settings" class="action-tile">
                 <span class="action-icon" style="background: #f0fdf4;">⚙️</span>
                 <div>
@@ -136,12 +144,74 @@
                 </div>
               </router-link>
 
-              <div class="action-tile action-tile--muted">
-                <span class="action-icon" style="background: #f1f5f9;">📊</span>
+              <button @click="runHealthCheck" class="action-tile" :disabled="isCheckingHealth" style="cursor: pointer;">
+                <span class="action-icon" style="background: #dbeafe;">🏥</span>
                 <div>
-                  <div class="action-title" style="color: #94a3b8;">Analytics</div>
-                  <div class="action-desc">Coming soon</div>
+                  <div class="action-title">API Health Check</div>
+                  <div class="action-desc">
+                    <span v-if="isCheckingHealth">Checking endpoints...</span>
+                    <span v-else-if="healthStatus">{{ healthSummary }}</span>
+                    <span v-else>Test all API endpoints</span>
+                  </div>
                 </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Health Check Results -->
+        <div v-if="healthStatus" class="card">
+          <div class="card-header d-flex align-items-center justify-content-between">
+            <h2 class="card-title">API Health Check Results</h2>
+            <button class="btn btn-sm btn-secondary" @click="runHealthCheck" :disabled="isCheckingHealth">
+              <span v-if="isCheckingHealth">⟳ Checking...</span>
+              <span v-else>⟳ Recheck</span>
+            </button>
+          </div>
+          <div class="card-body" style="padding: 0;">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Endpoint</th>
+                  <th>Status</th>
+                  <th>Response Time</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(result, index) in healthStatus.endpoints" :key="index" :class="{ 'health-error': !result.healthy }">
+                  <td style="font-family: monospace; font-size: 0.85rem;">{{ result.endpoint }}</td>
+                  <td>
+                    <span class="health-badge" :class="result.healthy ? 'health-badge--ok' : 'health-badge--error'">
+                      {{ result.healthy ? '✓ OK' : '✗ Error' }}
+                    </span>
+                  </td>
+                  <td style="color: #64748b; font-size: 0.875rem;">
+                    <span v-if="result.responseTime">{{ result.responseTime }}ms</span>
+                    <span v-else>—</span>
+                  </td>
+                  <td style="color: #64748b; font-size: 0.875rem;">
+                    {{ result.message || result.error || '—' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="health-summary">
+              <div class="health-summary-item">
+                <span class="health-label">Total Endpoints:</span>
+                <span class="health-value">{{ healthStatus.total }}</span>
+              </div>
+              <div class="health-summary-item">
+                <span class="health-label">Healthy:</span>
+                <span class="health-value" style="color: #059669;">{{ healthStatus.healthy }}</span>
+              </div>
+              <div class="health-summary-item">
+                <span class="health-label">Failed:</span>
+                <span class="health-value" style="color: #dc2626;">{{ healthStatus.unhealthy }}</span>
+              </div>
+              <div class="health-summary-item">
+                <span class="health-label">Checked:</span>
+                <span class="health-value">{{ new Date(healthStatus.checkedAt).toLocaleString() }}</span>
               </div>
             </div>
           </div>
@@ -162,6 +232,7 @@ import AdminLayout from '@/components/AdminLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { DashboardStats } from '@/types'
 import { logError, logDebug } from '@/services/logger'
+import { DASHBOARD_STATS_TIMEOUT_MS } from '@/constants'
 
 const API_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5226'}/api/v1`
 
@@ -170,6 +241,17 @@ const authStore = useAuthStore()
 const stats = ref<DashboardStats | null>(null)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+
+// Health check state
+const healthStatus = ref<any | null>(null)
+const isCheckingHealth = ref(false)
+
+const healthSummary = computed(() => {
+  if (!healthStatus.value) return ''
+  const { healthy, unhealthy } = healthStatus.value
+  if (unhealthy === 0) return `✓ All ${healthy} endpoints healthy`
+  return `⚠ ${unhealthy} endpoint${unhealthy > 1 ? 's' : ''} failing`
+})
 
 const formattedDate = computed(() => {
   return new Intl.DateTimeFormat('en-US', {
@@ -220,6 +302,87 @@ const roleBadgeClass = (roleName: string) => {
   if (roleName === 'SuperAdmin') return 'role-badge--superadmin'
   if (roleName === 'Admin') return 'role-badge--admin'
   return 'role-badge--user'
+}
+
+const runHealthCheck = async () => {
+  isCheckingHealth.value = true
+  
+  const endpoints = [
+    { path: '/health', name: 'API Health', requiresAuth: false },
+    { path: '/api/v1/products', name: 'Products List', requiresAuth: false },
+    { path: '/api/v1/products/featured', name: 'Featured Products', requiresAuth: false },
+    { path: '/api/v1/categories', name: 'Categories', requiresAuth: false },
+    { path: '/api/v1/settings', name: 'Public Settings', requiresAuth: false },
+    { path: '/api/v1/auth/me', name: 'Auth - Current User', requiresAuth: true },
+    { path: '/api/v1/admin/dashboard/stats', name: 'Dashboard Stats', requiresAuth: true },
+    { path: '/api/v1/admin/users', name: 'Admin - Users', requiresAuth: true },
+    { path: '/api/v1/admin/settings', name: 'Admin - Settings', requiresAuth: true },
+    { path: '/api/v1/admin/media', name: 'Media Library', requiresAuth: true },
+  ]
+  
+  const results = []
+  const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5226'
+  
+  for (const endpoint of endpoints) {
+    const startTime = performance.now()
+    try {
+      const headers: Record<string, string> = {}
+      if (endpoint.requiresAuth && authStore.token) {
+        headers['Authorization'] = `Bearer ${authStore.token}`
+      }
+      
+      const response = await fetch(`${baseUrl}${endpoint.path}`, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(DASHBOARD_STATS_TIMEOUT_MS)
+      })
+      
+      const endTime = performance.now()
+      const responseTime = Math.round(endTime - startTime)
+      
+      if (response.ok) {
+        results.push({
+          endpoint: endpoint.name,
+          path: endpoint.path,
+          healthy: true,
+          responseTime,
+          message: `HTTP ${response.status}`
+        })
+      } else {
+        results.push({
+          endpoint: endpoint.name,
+          path: endpoint.path,
+          healthy: false,
+          responseTime,
+          error: `HTTP ${response.status} ${response.statusText}`
+        })
+      }
+    } catch (err: any) {
+      const endTime = performance.now()
+      const responseTime = Math.round(endTime - startTime)
+      
+      results.push({
+        endpoint: endpoint.name,
+        path: endpoint.path,
+        healthy: false,
+        responseTime,
+        error: err.name === 'TimeoutError' ? 'Request timeout' : err.message || 'Network error'
+      })
+    }
+  }
+  
+  const healthy = results.filter(r => r.healthy).length
+  const unhealthy = results.length - healthy
+  
+  healthStatus.value = {
+    endpoints: results,
+    total: results.length,
+    healthy,
+    unhealthy,
+    checkedAt: new Date().toISOString()
+  }
+  
+  isCheckingHealth.value = false
 }
 
 onMounted(() => {
@@ -427,5 +590,69 @@ onMounted(() => {
   font-size: 0.78rem;
   color: #cbd5e1;
   text-align: right;
+}
+
+/* Health check styles */
+.health-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.health-badge--ok {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.health-badge--error {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.health-error {
+  background: #fef2f2;
+}
+
+.health-summary {
+  display: flex;
+  gap: 2rem;
+  padding: 1.25rem 1.5rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.health-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.health-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.health-value {
+  font-size: 1.125rem;
+  color: #1e293b;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .health-summary {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  
+  .health-summary-item {
+    flex: 1 1 40%;
+  }
 }
 </style>

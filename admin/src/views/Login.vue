@@ -48,7 +48,7 @@
 
         <div class="text-center mt-6">
           <p class="text-muted" style="font-size: 0.875rem;">
-            <a href="http://localhost:5173" style="color: #4f46e5;">← Back to Main Site</a>
+            <a href="http://localhost:5174" style="color: #4f46e5;">← Back to Main Site</a>
           </p>
         </div>
       </div>
@@ -57,12 +57,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const toast = useToast()
 
 const email = ref('')
 const password = ref('')
@@ -70,6 +72,15 @@ const error = ref('')
 const emailError = ref('')
 const passwordError = ref('')
 const loading = ref(false)
+
+// Check for logout notification
+onMounted(() => {
+  const logoutReason = localStorage.getItem('auth_logout_reason')
+  if (logoutReason) {
+    toast.warning(logoutReason)
+    localStorage.removeItem('auth_logout_reason')
+  }
+})
 
 const validateForm = () => {
   emailError.value = ''

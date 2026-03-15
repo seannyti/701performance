@@ -1,6 +1,10 @@
 ?<template>
   <AdminLayout>
     <div class="users-page">
+      <!-- Loading overlay -->
+      <div v-if="isLoading && users.length === 0" class="loading-overlay">
+        <div class="spinner spinner-lg"></div>
+      </div>
 
       <!-- Header -->
       <div class="page-header">
@@ -95,7 +99,11 @@
               </td>
 
               <!-- Email -->
-              <td class="text-muted" style="font-size:0.875rem">{{ user.email }}</td>
+              <td class="text-muted" style="font-size:0.875rem">
+                {{ user.email }}
+                <span v-if="user.isEmailVerified" class="verified-badge" title="Email verified">✓</span>
+                <span v-else class="unverified-badge" title="Email not verified">!</span>
+              </td>
 
               <!-- Role -->
               <td>
@@ -151,11 +159,12 @@
                     v-if="authStore.isSuperAdmin && user.id !== currentUserId"
                     class="btn btn-sm"
                     :class="user.isActive ? 'btn-secondary' : 'btn-success'"
-                    :disabled="statusUpdating === user.id"
+                    :disabled="isActionLoading(user.id)"
                     @click="toggleStatus(user)"
                     :title="user.isActive ? 'Deactivate' : 'Activate'"
                   >
-                    {{ user.isActive ? '⏸' : '▶' }}
+                    <span v-if="isActionLoading(user.id)" class="btn-spinner"></span>
+                    <span v-else>{{ user.isActive ? '⏸' : '▶' }}</span>
                   </button>
 
                   <!-- Delete (SuperAdmin only, not self) -->
@@ -279,8 +288,9 @@
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary" @click="closeEditModal">Cancel</button>
-            <button class="btn" :disabled="editLoading" @click="submitEditUser">
-              {{ editLoading ? 'Saving…' : 'Save Changes' }}
+            <button class="btn" :disabled="isActionLoading('editUser')" @click="submitEditUser">
+              <span v-if="isActionLoading('editUser')" class="btn-spinner"></span>
+              {{ isActionLoading('editUser') ? 'Saving…' : 'Save Changes' }}
             </button>
           </div>
         </div>
@@ -324,8 +334,9 @@
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary" @click="resetPwTarget = null">Cancel</button>
-            <button class="btn btn-danger" :disabled="resetPwLoading" @click="submitResetPassword">
-              {{ resetPwLoading ? 'Resetting…' : 'Reset Password' }}
+            <button class="btn btn-danger" :disabled="isActionLoading('resetPw')" @click="submitResetPassword">
+              <span v-if="isActionLoading('resetPw')" class="btn-spinner"></span>
+              {{ isActionLoading('resetPw') ? 'Resetting…' : 'Reset Password' }}
             </button>
           </div>
         </div>
@@ -383,8 +394,9 @@
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary" @click="closeAddModal">Cancel</button>
-            <button class="btn" :disabled="addLoading" @click="submitAddUser">
-              {{ addLoading ? 'Creating…' : 'Create User' }}
+            <button class="btn" :disabled="isActionLoading('addUser')" @click="submitAddUser">
+              <span v-if="isActionLoading('addUser')" class="btn-spinner"></span>
+              {{ isActionLoading('addUser') ? 'Creating…' : 'Create User' }}
             </button>
           </div>
         </div>
@@ -405,8 +417,9 @@
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary" @click="deleteTarget = null">Cancel</button>
-            <button class="btn btn-danger" :disabled="deleteLoading" @click="deleteUser">
-              {{ deleteLoading ? 'Deleting…' : 'Delete permanently' }}
+            <button class="btn btn-danger" :disabled="deleteTarget && isActionLoading(deleteTarget.id)" @click="deleteUser">
+              <span v-if="deleteTarget && isActionLoading(deleteTarget.id)" class="btn-spinner"></span>
+              {{ deleteTarget && isActionLoading(deleteTarget.id) ? 'Deleting…' : 'Delete permanently' }}
             </button>
           </div>
         </div>
@@ -420,28 +433,26 @@
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useLoadingState } from '@/composables/useLoadingState'
 import { UserRole } from '@/types'
 import type { AdminUser, CreateUserRequest, UpdateUserInfoRequest } from '@/types'
 import { logError, logDebug } from '@/services/logger'
 
-const API_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5226'}/api/v1`
+import { API_URL } from '@/utils/api-config'
 
 const authStore = useAuthStore()
+const { isLoading, executeWithLoading, isActionLoading } = useLoadingState()
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const users        = ref<AdminUser[]>([])
-const isLoading    = ref(false)
 const error        = ref<string | null>(null)
 const search       = ref('')
 const roleFilter   = ref<UserRole | ''>('')
 const statusFilter = ref<'active' | 'inactive' | ''>('')
 const showInactive = ref(true)
 
-const statusUpdating = ref<number | null>(null)
-
 // ─── Edit user modal ──────────────────────────────────────────────────────────
 const editTarget     = ref<AdminUser | null>(null)
-const editLoading    = ref(false)
 const editError      = ref<string | null>(null)
 const editFormErrors = ref<Record<string, string>>({})
 const editForm = ref<UpdateUserInfoRequest & { role: UserRole }>({
@@ -450,14 +461,12 @@ const editForm = ref<UpdateUserInfoRequest & { role: UserRole }>({
 
 // ─── Reset password modal ──────────────────────────────────────────────────────
 const resetPwTarget     = ref<AdminUser | null>(null)
-const resetPwLoading    = ref(false)
 const resetPwError      = ref<string | null>(null)
 const resetPwFormErrors = ref<Record<string, string>>({})
 const resetPwForm = ref({ newPassword: '', confirmPassword: '' })
 
 // ─── Add user modal ────────────────────────────────────────────────────────────
 const showAddModal  = ref(false)
-const addLoading    = ref(false)
 const addError      = ref<string | null>(null)
 const addFormErrors = ref<Record<string, string>>({})
 const addForm = ref<CreateUserRequest>({
@@ -466,7 +475,6 @@ const addForm = ref<CreateUserRequest>({
 
 // ─── Delete modal ─────────────────────────────────────────────────────────────
 const deleteTarget  = ref<AdminUser | null>(null)
-const deleteLoading = ref(false)
 
 const currentUserId = computed(() => authStore.user?.id ?? -1)
 
@@ -481,7 +489,12 @@ const filteredUsers = computed(() => {
       u.email.toLowerCase().includes(q) ||
       (u.lastLoginIp ?? '').includes(q)
 
-    const matchRole   = roleFilter.value === '' || u.role === Number(roleFilter.value)
+    // Handle both string role names and numeric role values from API
+    const matchRole = roleFilter.value === '' || 
+      u.role === Number(roleFilter.value) ||
+      (Number(roleFilter.value) === 0 && (u.role === 'User' || u.role === 0)) ||
+      (Number(roleFilter.value) === 1 && (u.role === 'Admin' || u.role === 1)) ||
+      (Number(roleFilter.value) === 2 && (u.role === 'SuperAdmin' || u.role === 2))
     const matchStatus =
       statusFilter.value === '' ||
       (statusFilter.value === 'active' && u.isActive) ||
@@ -493,21 +506,20 @@ const filteredUsers = computed(() => {
 
 // ─── Data loading ─────────────────────────────────────────────────────────────
 const loadUsers = async () => {
-  isLoading.value = true
-  error.value = null
-  try {
-    const res = await fetch(`${API_URL}/admin/users`, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-    if (!res.ok) throw new Error(`Server responded with ${res.status}`)
-    users.value = await res.json()
-    logDebug('Users loaded', { count: users.value.length })
-  } catch (err) {
-    logError('Failed to load users', err)
-    error.value = 'Could not load users. Is the API running?'
-  } finally {
-    isLoading.value = false
-  }
+  await executeWithLoading(async () => {
+    error.value = null
+    try {
+      const res = await fetch(`${API_URL}/admin/users`, {
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      })
+      if (!res.ok) throw new Error(`Server responded with ${res.status}`)
+      users.value = await res.json()
+      logDebug('Users loaded', { count: users.value.length })
+    } catch (err) {
+      logError('Failed to load users', err)
+      error.value = 'Could not load users. Is the API running?'
+    }
+  })
 }
 
 // ─── Edit user ────────────────────────────────────────────────────────────────
@@ -540,62 +552,63 @@ const validateEditForm = (): boolean => {
 
 const submitEditUser = async () => {
   if (!editTarget.value || !validateEditForm()) return
-  editLoading.value = true
-  editError.value = null
-  try {
-    const userId = editTarget.value.id
+  await executeWithLoading(async () => {
+    editError.value = null
+    try {
+      const userId = editTarget.value!.id
 
-    // Save profile info
-    const infoRes = await fetch(`${API_URL}/admin/users/${userId}/info`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
-      body: JSON.stringify({
-        firstName: editForm.value.firstName,
-        lastName:  editForm.value.lastName,
-        email:     editForm.value.email,
-        phone:     editForm.value.phone || null,
-        subscribeNewsletter: editForm.value.subscribeNewsletter
-      })
-    })
-    if (!infoRes.ok) {
-      const data = await infoRes.json()
-      throw new Error(data.message ?? 'Update failed')
-    }
-
-    // Save role if changed and SuperAdmin
-    if (authStore.isSuperAdmin && editTarget.value.id !== currentUserId.value && editForm.value.role !== editTarget.value.role) {
-      const roleRes = await fetch(`${API_URL}/admin/users/${userId}/role`, {
+      // Save profile info
+      const infoRes = await fetch(`${API_URL}/admin/users/${userId}/info`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
-        body: JSON.stringify({ role: editForm.value.role })
+        body: JSON.stringify({
+          firstName: editForm.value.firstName,
+          lastName:  editForm.value.lastName,
+          email:     editForm.value.email,
+          phone:     editForm.value.phone || null,
+          subscribeNewsletter: editForm.value.subscribeNewsletter,
+          isEmailVerified: editForm.value.isEmailVerified
+        })
       })
-      if (!roleRes.ok) {
-        const data = await roleRes.json()
-        throw new Error(data.message ?? 'Role update failed')
+      if (!infoRes.ok) {
+        const data = await infoRes.json()
+        throw new Error(data.message ?? 'Update failed')
       }
-    }
 
-    // Update local state
-    const u = users.value.find(u => u.id === userId)
-    if (u) {
-      u.firstName = editForm.value.firstName
-      u.lastName  = editForm.value.lastName
-      u.email     = editForm.value.email
-      u.phone     = editForm.value.phone || undefined
-      u.subscribeNewsletter = editForm.value.subscribeNewsletter
-      if (authStore.isSuperAdmin && u.id !== currentUserId.value) {
-        u.role     = editForm.value.role
-        u.roleName = roleLabel(editForm.value.role)
+      // Save role if changed and SuperAdmin
+      if (authStore.isSuperAdmin && editTarget.value!.id !== currentUserId.value && editForm.value.role !== editTarget.value!.role) {
+        const roleRes = await fetch(`${API_URL}/admin/users/${userId}/role`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
+          body: JSON.stringify({ role: editForm.value.role })
+        })
+        if (!roleRes.ok) {
+          const data = await roleRes.json()
+          throw new Error(data.message ?? 'Role update failed')
+        }
       }
-    }
 
-    closeEditModal()
-  } catch (err) {
-    logError('Failed to edit user', err)
-    editError.value = (err as Error).message
-  } finally {
-    editLoading.value = false
-  }
+      // Update local state
+      const u = users.value.find(u => u.id === userId)
+      if (u) {
+        u.firstName = editForm.value.firstName
+        u.lastName  = editForm.value.lastName
+        u.email     = editForm.value.email
+        u.phone     = editForm.value.phone || undefined
+        u.subscribeNewsletter = editForm.value.subscribeNewsletter
+        u.isEmailVerified = editForm.value.isEmailVerified
+        if (authStore.isSuperAdmin && u.id !== currentUserId.value) {
+          u.role     = editForm.value.role
+          u.roleName = roleLabel(editForm.value.role)
+        }
+      }
+
+      closeEditModal()
+    } catch (err) {
+      logError('Failed to edit user', err)
+      editError.value = (err as Error).message
+    }
+  }, 'editUser')
 }
 
 // ─── Reset password ────────────────────────────────────────────────────────────
@@ -617,46 +630,44 @@ const validateResetPwForm = (): boolean => {
 
 const submitResetPassword = async () => {
   if (!resetPwTarget.value || !validateResetPwForm()) return
-  resetPwLoading.value = true
-  resetPwError.value   = null
-  try {
-    const res = await fetch(`${API_URL}/admin/users/${resetPwTarget.value.id}/password`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
-      body: JSON.stringify({ newPassword: resetPwForm.value.newPassword })
-    })
-    if (!res.ok) {
-      const data = await res.json()
-      throw new Error(data.message ?? 'Password reset failed')
+  await executeWithLoading(async () => {
+    resetPwError.value = null
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${resetPwTarget.value!.id}/password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
+        body: JSON.stringify({ newPassword: resetPwForm.value.newPassword })
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.message ?? 'Password reset failed')
+      }
+      resetPwTarget.value = null
+    } catch (err) {
+      logError('Failed to reset password', err)
+      resetPwError.value = (err as Error).message
     }
-    resetPwTarget.value = null
-  } catch (err) {
-    logError('Failed to reset password', err)
-    resetPwError.value = (err as Error).message
-  } finally {
-    resetPwLoading.value = false
-  }
+  }, 'resetPw')
 }
 
 // ─── Status toggle ────────────────────────────────────────────────────────────
 const toggleStatus = async (user: AdminUser) => {
-  statusUpdating.value = user.id
-  try {
-    const res = await fetch(`${API_URL}/admin/users/${user.id}/status`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-    if (!res.ok) {
-      const data = await res.json()
-      throw new Error(data.message ?? 'Status update failed')
+  await executeWithLoading(async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${user.id}/status`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.message ?? 'Status update failed')
+      }
+      user.isActive = !user.isActive
+    } catch (err) {
+      logError('Failed to toggle status', err)
+      error.value = (err as Error).message
     }
-    user.isActive = !user.isActive
-  } catch (err) {
-    logError('Failed to toggle status', err)
-    error.value = (err as Error).message
-  } finally {
-    statusUpdating.value = null
-  }
+  }, user.id)
 }
 
 // ─── Add user ─────────────────────────────────────────────────────────────────
@@ -683,24 +694,23 @@ const validateAddForm = (): boolean => {
 
 const submitAddUser = async () => {
   if (!validateAddForm()) return
-  addLoading.value = true
-  addError.value = null
-  try {
-    const res = await fetch(`${API_URL}/admin/users`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
-      body: JSON.stringify(addForm.value)
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.message ?? 'Create failed')
-    users.value.unshift(data)
-    closeAddModal()
-  } catch (err) {
-    logError('Failed to create user', err)
-    addError.value = (err as Error).message
-  } finally {
-    addLoading.value = false
-  }
+  await executeWithLoading(async () => {
+    addError.value = null
+    try {
+      const res = await fetch(`${API_URL}/admin/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
+        body: JSON.stringify(addForm.value)
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message ?? 'Create failed')
+      users.value.unshift(data)
+      closeAddModal()
+    } catch (err) {
+      logError('Failed to create user', err)
+      addError.value = (err as Error).message
+    }
+  }, 'addUser')
 }
 
 // ─── Delete user ──────────────────────────────────────────────────────────────
@@ -708,25 +718,25 @@ const confirmDelete = (user: AdminUser) => { deleteTarget.value = user }
 
 const deleteUser = async () => {
   if (!deleteTarget.value) return
-  deleteLoading.value = true
-  try {
-    const res = await fetch(`${API_URL}/admin/users/${deleteTarget.value.id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-    if (!res.ok) {
-      const data = await res.json()
-      throw new Error(data.message ?? 'Delete failed')
+  const userId = deleteTarget.value.id
+  await executeWithLoading(async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.message ?? 'Delete failed')
+      }
+      users.value = users.value.filter(u => u.id !== userId)
+      deleteTarget.value = null
+    } catch (err) {
+      logError('Failed to delete user', err)
+      error.value = (err as Error).message
+      deleteTarget.value = null
     }
-    users.value = users.value.filter(u => u.id !== deleteTarget.value!.id)
-    deleteTarget.value = null
-  } catch (err) {
-    logError('Failed to delete user', err)
-    error.value = (err as Error).message
-    deleteTarget.value = null
-  } finally {
-    deleteLoading.value = false
-  }
+  }, userId)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1010,4 +1020,29 @@ onMounted(loadUsers)
 .meta-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; font-weight: 600; }
 .meta-value { font-size: 0.875rem; color: #374151; font-weight: 500; }
 .ip-mono    { font-family: 'Courier New', monospace; background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 3px; }
+
+/* Email verification badges */
+.verified-badge, .unverified-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  width: 1.15rem;
+  height: 1.15rem;
+  line-height: 1.15rem;
+  text-align: center;
+  border-radius: 50%;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
+
+.verified-badge {
+  background: #22c55e;
+  color: white;
+}
+
+.unverified-badge {
+  background: #f59e0b;
+  color: white;
+  font-size: 0.65rem;
+}
 </style>

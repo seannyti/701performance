@@ -39,6 +39,8 @@ public class CreateProductRequest
 
     [Range(0, 999999.99)]
     public decimal? CostPrice { get; set; }
+
+    public string? Specifications { get; set; }
 }
 
 /// <summary>
@@ -78,6 +80,8 @@ public class UpdateProductRequest
 
     [Range(0, 999999.99)]
     public decimal? CostPrice { get; set; }
+
+    public string? Specifications { get; set; }
 }
 
 /// <summary>
@@ -266,4 +270,163 @@ public class AdminOperationResult
     {
         return new AdminOperationResult { Success = false, Message = message };
     }
+}
+
+/// <summary>
+/// Request model for updating a contact submission
+/// </summary>
+public class UpdateContactSubmissionRequest
+{
+    [Required]
+    public ContactStatus Status { get; set; }
+    
+    public string? AdminNotes { get; set; }
+    
+    public int? AssignedToUserId { get; set; }
+}
+
+/// <summary>
+/// Request model for creating a manual order (admin)
+/// </summary>
+public class CreateOrderRequest
+{
+    public int? UserId { get; set; }
+    
+    [Required]
+    [MaxLength(200)]
+    public string CustomerName { get; set; } = string.Empty;
+    
+    [Required]
+    [EmailAddress]
+    [MaxLength(255)]
+    public string CustomerEmail { get; set; } = string.Empty;
+    
+    [Required]
+    [MaxLength(20)]
+    public string CustomerPhone { get; set; } = string.Empty;
+    
+    [Required]
+    [MaxLength(500)]
+    public string ShippingAddress { get; set; } = string.Empty;
+    
+    [Required]
+    [MaxLength(100)]
+    public string ShippingCity { get; set; } = string.Empty;
+    
+    [Required]
+    [MaxLength(50)]
+    public string ShippingState { get; set; } = string.Empty;
+    
+    [Required]
+    [MaxLength(20)]
+    public string ShippingZipCode { get; set; } = string.Empty;
+    
+    [MaxLength(100)]
+    public string? ShippingCountry { get; set; } = "USA";
+    
+    [Required]
+    public List<CreateOrderItemRequest> Items { get; set; } = new();
+    
+    [Range(0, 999999.99)]
+    public decimal TaxAmount { get; set; }
+    
+    [Range(0, 999999.99)]
+    public decimal ShippingCost { get; set; }
+    
+    [Required]
+    public PaymentMethod PaymentMethod { get; set; }
+    
+    public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
+    
+    public string? PaymentNotes { get; set; }
+    
+    public string? CustomerNotes { get; set; }
+    
+    public string? AdminNotes { get; set; }
+}
+
+/// <summary>
+/// Request model for order item within CreateOrderRequest
+/// </summary>
+public class CreateOrderItemRequest
+{
+    [Required]
+    public int ProductId { get; set; }
+    
+    [Required]
+    [Range(1, int.MaxValue)]
+    public int Quantity { get; set; }
+    
+    [Range(0.01, 999999.99)]
+    public decimal? UnitPriceOverride { get; set; } // Allow admin to override price
+}
+
+/// <summary>
+/// Request model for updating an existing order
+/// </summary>
+public class UpdateOrderRequest
+{
+    [MaxLength(200)]
+    public string? CustomerName { get; set; }
+    
+    [EmailAddress]
+    [MaxLength(255)]
+    public string? CustomerEmail { get; set; }
+    
+    [MaxLength(20)]
+    public string? CustomerPhone { get; set; }
+    
+    [MaxLength(500)]
+    public string? ShippingAddress { get; set; }
+    
+    [MaxLength(100)]
+    public string? ShippingCity { get; set; }
+    
+    [MaxLength(50)]
+    public string? ShippingState { get; set; }
+    
+    [MaxLength(20)]
+    public string? ShippingZipCode { get; set; }
+    
+    [MaxLength(100)]
+    public string? ShippingCountry { get; set; }
+    
+    public OrderStatus? OrderStatus { get; set; }
+    
+    public PaymentStatus? PaymentStatus { get; set; }
+    
+    public PaymentMethod? PaymentMethod { get; set; }
+    
+    public DateTime? PaymentReceivedDate { get; set; }
+    
+    public string? PaymentNotes { get; set; }
+    
+    [MaxLength(200)]
+    public string? TrackingNumber { get; set; }
+    
+    [MaxLength(100)]
+    public string? ShippingCarrier { get; set; }
+    
+    public DateTime? ShippedDate { get; set; }
+    
+    public DateTime? DeliveredDate { get; set; }
+    
+    public string? CustomerNotes { get; set; }
+    
+    public string? AdminNotes { get; set; }
+}
+
+/// <summary>
+/// Request model for updating media file metadata
+/// </summary>
+public class UpdateMediaFileRequest
+{
+    [MaxLength(500)]
+    public string? AltText { get; set; }
+    
+    [MaxLength(1000)]
+    public string? Caption { get; set; }
+    
+    [MaxLength(500)]
+    public string? Tags { get; set; }
 }

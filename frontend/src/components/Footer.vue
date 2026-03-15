@@ -9,7 +9,14 @@
           <p class="footer-description">
             {{ getSetting('site_tagline', 'Your Ultimate Powersports Destination') }}
           </p>
-          <div class="logo-placeholder">🏍️</div>
+          <img 
+            v-if="getSetting('logo_url')" 
+            :src="getMediaUrl(getSetting('logo_url'))" 
+            alt="Logo" 
+            class="footer-logo"
+            :style="{ height: logoFooterHeight }"
+          />
+          <div v-else class="logo-placeholder">🏍️</div>
         </div>
 
         <!-- Quick Links Section -->
@@ -71,6 +78,30 @@
       </div>
     </div>
 
+    <!-- Partner Brands Section -->
+    <div v-if="brands.length > 0" class="brands-bar">
+      <div class="footer-container">
+        <h4 class="brands-title">Our Partner Brands</h4>
+        <div class="brands-list">
+          <a 
+            v-for="(brand, index) in brands" 
+            :key="index"
+            v-if="brand.logoUrl"
+            :href="brand.website || '#'"
+            :target="brand.website ? '_blank' : '_self'"
+            :rel="brand.website ? 'noopener noreferrer' : ''"
+            class="brand-logo-link"
+          >
+            <img 
+              :src="getMediaUrl(brand.logoUrl)" 
+              :alt="brand.name"
+              class="footer-brand-logo"
+            />
+          </a>
+        </div>
+      </div>
+    </div>
+
     <!-- Bottom Bar -->
     <div class="footer-bottom">
       <div class="footer-container">
@@ -93,30 +124,47 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useSettings } from '@/composables/useSettings';
+import { getMediaUrl } from '@/utils/api-config';
 
 // Get current year for copyright
 const currentYear = computed(() => new Date().getFullYear());
 const { getSetting } = useSettings();
+
+// Logo size from settings (default: 48px)
+const logoFooterHeight = computed(() => {
+  const height = getSetting('logo_footer_height', '48');
+  return `${height}px`;
+});
+
+// Parse brands from settings
+const brands = computed(() => {
+  try {
+    const brandsJson = getSetting('partner_brands', '[]');
+    return JSON.parse(brandsJson).filter((brand: any) => brand.name && brand.logoUrl);
+  } catch {
+    return [];
+  }
+});
 </script>
 
 <style scoped>
 .footer {
-  background-color: #1a1a1a;
-  color: white;
+  background-color: var(--footer-bg, #1a1a1a);
+  color: var(--footer-text, white);
   margin-top: auto;
 }
 
 .footer-container {
-  max-width: 1200px;
+  max-width: var(--container-max-width, 1200px);
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: var(--footer-padding, 3rem) var(--container-padding, 1rem);
 }
 
 /* Content Grid */
 .footer-content {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 2rem;
+  gap: var(--element-gap, 2rem);
   align-items: start;
 }
 
@@ -125,24 +173,31 @@ const { getSetting } = useSettings();
 }
 
 .footer-title {
-  color: #ff6b35;
+  color: var(--color-primary, #ff6b35);
   font-size: 1.3rem;
   margin: 0 0 1rem 0;
-  font-weight: bold;
+  font-weight: var(--font-weight-heading, bold);
+  font-family: var(--font-heading);
 }
 
 .footer-subtitle {
-  color: white;
+  color: var(--footer-text, white);
   font-size: 1.1rem;
   margin: 0 0 1rem 0;
   font-weight: 600;
 }
 
 .footer-description {
-  color: #cccccc;
-  line-height: 1.5;
+  color: var(--color-text-muted, #cccccc);
+  line-height: var(--line-height-body, 1.5);
   margin-bottom: 0.75rem;
   font-size: 0.9rem;
+}
+
+.footer-logo {
+  width: auto;
+  margin-top: 0.5rem;
+  object-fit: contain;
 }
 
 .logo-placeholder {
@@ -161,18 +216,19 @@ const { getSetting } = useSettings();
 }
 
 .footer-link {
-  color: #cccccc;
+  color: var(--footer-text, #cccccc);
   text-decoration: none;
-  transition: color 0.3s ease;
+  transition: color var(--transition-duration, 0.3s) var(--transition-timing, ease);
   font-size: 0.95rem;
 }
 
 .footer-link:hover {
-  color: #ff6b35;
+  color: var(--color-primary, #ff6b35);
+  transform: translateX(calc(var(--hover-lift-amount, 4px) * 0.5));
 }
 
 .contact-info {
-  color: #cccccc;
+  color: var(--footer-text, #cccccc);
 }
 
 .contact-item {
@@ -231,6 +287,59 @@ const { getSetting } = useSettings();
   .footer-content {
     grid-template-columns: 2fr 1fr 1fr 1fr;
   }
+}
+
+/* Partner Brands Bar */
+.brands-bar {
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 2rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.brands-title {
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.brands-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+}
+
+.brand-logo-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.brand-logo-link:hover {
+  transform: translateY(-3px);
+}
+
+.footer-brand-logo {
+  max-width: 120px;
+  max-height: 50px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: grayscale(100%) brightness(2);
+  opacity: 0.6;
+  transition: all 0.3s ease;
+}
+
+.footer-brand-logo:hover {
+  filter: grayscale(0%) brightness(1.2);
+  opacity: 1;
 }
 
 /* Tablet and mobile responsive */

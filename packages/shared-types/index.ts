@@ -3,10 +3,7 @@
  * Used by both frontend and admin applications
  */
 
-// ============================================================================
-// PRODUCT TYPES
-// ============================================================================
-
+// Product Types
 export interface Product {
   id: number;
   name: string;
@@ -22,16 +19,26 @@ export interface Product {
   stockQuantity: number;
   lowStockThreshold: number;
   costPrice?: number | null;
+  specifications?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  // Image gallery
+  productImages?: ProductImageInfo[];
+}
+
+export interface ProductImageInfo {
+  id: number;
+  productId: number;
+  mediaFileId: number;
+  isMain: boolean;
+  sortOrder: number;
+  url: string;
+  thumbnailUrl?: string;
 }
 
 export type ProductCategory = 'ATV' | 'Dirtbike' | 'UTV' | 'Snowmobile' | 'Gear';
 
-// ============================================================================
-// CATEGORY TYPES
-// ============================================================================
-
+// Category Types
 export interface Category {
   id: number;
   name: string;
@@ -42,10 +49,7 @@ export interface Category {
   updatedAt: string;
 }
 
-// ============================================================================
-// USER & AUTHENTICATION TYPES
-// ============================================================================
-
+// User & Authentication Types
 export enum UserRole {
   User = 0,
   Admin = 1,
@@ -59,7 +63,7 @@ export interface User {
   email: string;
   phone?: string;
   fullName: string;
-  role: UserRole;
+  role: UserRole | string; // Support both enum number and string from API
   roleName: string;
   createdAt: string;
 }
@@ -85,10 +89,7 @@ export interface RegisterRequest {
   phone?: string;
 }
 
-// ============================================================================
-// API RESPONSE TYPES
-// ============================================================================
-
+// API Response Types
 export interface ApiResponse<T> {
   data: T;
   success: boolean;
@@ -101,12 +102,12 @@ export interface ApiError {
   statusCode?: number;
 }
 
-// ============================================================================
-// FORM TYPES
-// ============================================================================
-
+// Form Types
 export interface ContactForm {
   name: string;
   email: string;
   message: string;
 }
+
+// Logger Utilities
+export { Logger, LogLevel, createLogger, createLoggerFunctions } from './logger';

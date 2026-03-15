@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { logDebug, logWarn } from '@/services/logger'
+import { MAINTENANCE_CHECK_TIMEOUT_MS } from '@/constants'
 
 // Extend route meta properties
 declare module 'vue-router' {
@@ -161,7 +162,7 @@ router.beforeEach(async (to, from, next) => {
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5226'
     const response = await fetch(`${API_URL}/api/v1/settings`, {
       // Add a short timeout to prevent hanging
-      signal: AbortSignal.timeout(3000)
+      signal: AbortSignal.timeout(MAINTENANCE_CHECK_TIMEOUT_MS)
     })
     
     if (response.ok) {

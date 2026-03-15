@@ -5,7 +5,14 @@
         <!-- Logo and Brand -->
         <div class="nav-brand">
           <router-link to="/" class="brand-link">
-            <div class="logo-placeholder">🏍️</div>
+            <img 
+              v-if="getSetting('logo_url')" 
+              :src="getMediaUrl(getSetting('logo_url'))" 
+              alt="Logo" 
+              class="brand-logo"
+              :style="{ height: logoHeaderHeight }"
+            />
+            <div v-else class="logo-placeholder">🏍️</div>
             <span class="brand-text">{{ getSetting('site_name', 'Powersports Gear & Vehicles') }}</span>
           </router-link>
         </div>
@@ -23,7 +30,11 @@
         </button>
 
         <!-- Navigation Links -->
-        <div class="nav-menu" :class="{ active: isMobileMenuOpen }">
+        <div 
+          class="nav-menu" 
+          :class="{ active: isMobileMenuOpen }"
+          :style="{ '--mobile-menu-top': `${headerHeight}px` }"
+        >
           <router-link 
             to="/" 
             class="nav-link" 
@@ -59,6 +70,17 @@
           
           <!-- Authentication Links -->
           <div class="auth-links">
+            <!-- Dark Mode Toggle -->
+            <button 
+              v-if="darkModeEnabled"
+              @click="themeStore.toggleDarkMode()" 
+              class="dark-mode-toggle"
+              :title="themeStore.isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+              aria-label="Toggle dark mode"
+            >
+              <span class="icon">{{ themeStore.isDarkMode ? '☀️' : '🌙' }}</span>
+            </button>
+
             <template v-if="!authStore.isAuthenticated">
               <router-link 
                 to="/login" 
@@ -67,15 +89,6 @@
                 active-class="active"
               >
                 Login
-              </router-link>
-              <router-link 
-                v-if="registrationEnabled"
-                to="/signup" 
-                class="auth-link signup-link" 
-                @click="closeMobileMenu"
-                active-class="active"
-              >
-                Sign Up
               </router-link>
             </template>
             <template v-else>
@@ -106,17 +119,52 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useThemeStore } from '@/stores/theme';
 import { useSettings } from '@/composables/useSettings';
+import { getMediaUrl } from '@/utils/api-config';
 
-// Router and auth store
+// Router and stores
 const router = useRouter();
 const authStore = useAuthStore();
+const themeStore = useThemeStore();
 const { getSetting } = useSettings();
 
 const registrationEnabled = computed(() => getSetting('allow_user_registration', 'true') !== 'false');
+const darkModeEnabled = computed(() => getSetting('theme_dark_mode_enabled', 'false') === 'true');
+
+// Logo size from settings (default: 40px)
+const logoHeaderHeight = computed(() => {
+  const height = getSetting('logo_header_height', '40');
+  return `${height}px`;
+});
+
+// Header height tracking for mobile menu positioning
+const headerHeight = ref(72);
+
+const updateHeaderHeight = () => {
+  const headerEl = document.querySelector('.header') as HTMLElement;
+  if (headerEl) {
+    headerHeight.value = headerEl.offsetHeight;
+  }
+};
+
+// Watch for logo size changes and update header height
+watch(logoHeaderHeight, () => {
+  // Use setTimeout to allow DOM to update first
+  setTimeout(updateHeaderHeight, 0);
+});
+
+onMounted(() => {
+  updateHeaderHeight();
+  window.addEventListener('resize', updateHeaderHeight);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateHeaderHeight);
+});
 
 // Mobile menu state
 const isMobileMenuOpen = ref(false);
@@ -141,15 +189,19 @@ const handleLogout = async () => {
 
 <style scoped>
 .header {
-  background-color: #1a1a1a;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: var(--header-bg, #1a1a1a);
+  box-shadow: var(--header-shadow, 0 2px 4px rgba(0, 0, 0, 0.1));
   position: sticky;
   top: 0;
   z-index: 1000;
+  margin: 0;
+  padding: 1rem 0;
+  display: flex;
+  align-items: center;
 }
 
 .navbar {
-  padding: 0.5rem 0;
+  width: 100%;
 }
 
 .nav-container {
@@ -170,18 +222,26 @@ const handleLogout = async () => {
   display: flex;
   align-items: center;
   text-decoration: none;
-  color: white;
+  color: var(--header-text, white);
   font-weight: bold;
+}
+
+.brand-logo {
+  width: auto;
+  margin-right: 0.5rem;
+  object-fit: contain;
 }
 
 .logo-placeholder {
   font-size: 2rem;
   margin-right: 0.5rem;
+  color: var(--header-text, white);
 }
 
 .brand-text {
   font-size: 1.5rem;
-  color: #ff6b35;
+  color: var(--header-text, white);
+  font-weight: 700;
 }
 
 .mobile-toggle {
@@ -196,9 +256,9 @@ const handleLogout = async () => {
 .mobile-toggle span {
   width: 25px;
   height: 3px;
-  background-color: white;
+  background-color: var(--header-text, white);
   margin: 3px 0;
-  transition: 0.3s;
+  transition: var(--transition-duration, 0.3s) var(--transition-timing, ease);
 }
 
 .mobile-toggle.active span:nth-child(1) {
@@ -220,23 +280,38 @@ const handleLogout = async () => {
 }
 
 .nav-link {
-  color: white;
+  color: var(--header-text, white);
   text-decoration: none;
   font-weight: 500;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
-  transition: all 0.3s ease;
+  border-radius: var(--button-radius, 4px);
+  transition: all var(--transition-duration, 0.3s) var(--transition-timing, ease);
   position: relative;
 }
 
 .nav-link:hover {
-  color: #ff6b35;
-  background-color: rgba(255, 107, 53, 0.1);
+  color: var(--header-text, white);
+  background-color: var(--color-bg-muted, rgba(255, 107, 53, 0.1));
+  transform: translateY(calc(var(--hover-lift-amount, 4px) * -0.1));
+  opacity: 0.9;
 }
 
 .nav-link.active {
-  color: #ff6b35;
-  background-color: rgba(255, 107, 53, 0.1);
+  color: var(--header-text, white);
+  background-color: var(--color-bg-muted, rgba(255, 255, 255, 0.2));
+  font-weight: 600;
+  position: relative;
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 1rem;
+  right: 1rem;
+  height: 2px;
+  background-color: var(--header-text, white);
+  border-radius: 1px;
 }
 
 /* Authentication Links */
@@ -246,16 +321,42 @@ const handleLogout = async () => {
   align-items: center;
   margin-left: 1rem;
   padding-left: 1rem;
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: 1px solid var(--color-border, rgba(255, 255, 255, 0.2));
+}
+
+/* Dark Mode Toggle */
+.dark-mode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-muted, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.2));
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  transition: all var(--transition-duration, 0.3s) var(--transition-timing, ease);
+  padding: 0;
+}
+
+.dark-mode-toggle:hover {
+  background: var(--color-bg-secondary, rgba(255, 255, 255, 0.2));
+  transform: rotate(20deg) scale(1.1);
+  box-shadow: var(--hover-shadow, 0 4px 12px rgba(0, 0, 0, 0.1));
+}
+
+.dark-mode-toggle .icon {
+  font-size: 1.25rem;
+  line-height: 1;
 }
 
 .auth-link {
-  color: white;
+  color: var(--header-text, white);
   text-decoration: none;
-  font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  transition: all 0.3s ease;
+  font-weight: var(--button-font-weight, 500);
+  padding: var(--button-padding-y, 0.5rem) var(--button-padding-x, 1rem);
+  border-radius: var(--button-radius, 6px);
+  transition: all var(--transition-duration, 0.3s) var(--transition-timing, ease);
   border: none;
   cursor: pointer;
   background: none;
@@ -263,46 +364,49 @@ const handleLogout = async () => {
 }
 
 .login-link {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--color-bg-muted, rgba(255, 255, 255, 0.1));
 }
 
 .login-link:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--color-bg-secondary, rgba(255, 255, 255, 0.2));
+  transform: translateY(calc(var(--hover-lift-amount, 4px) * -0.25));
 }
 
 .signup-link {
-  background: linear-gradient(135deg, #ff6b35, #f7931e);
-  color: white;
+  background: var(--color-primary, #ff6b35);
+  color: var(--header-text, white);
 }
 
 .signup-link:hover {
-  background: linear-gradient(135deg, #e55a2b, #e6830e);
+  background: var(--gradient);
   transform: translateY(-1px);
+  opacity: 0.9;
 }
 
 .logout-btn {
-  background: rgba(255, 107, 53, 0.1);
-  color: #ff6b35;
+  background: var(--color-bg-muted, rgba(255, 107, 53, 0.1));
+  color: var(--header-text, white);
 }
 
 .logout-btn:hover {
-  background: rgba(255, 107, 53, 0.2);
+  background: var(--color-bg-secondary, rgba(255, 107, 53, 0.2));
 }
 
 .user-welcome {
-  color: #ff6b35;
+  color: var(--header-text, white);
   font-size: 0.9rem;
   font-weight: 500;
+  opacity: 0.9;
 }
 
 .admin-link {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  color: white;
+  background: var(--color-secondary, #4f46e5);
+  color: var(--header-text, white);
   font-size: 0.9rem;
 }
 
 .admin-link:hover {
-  background: linear-gradient(135deg, #4338ca, #6d28d9);
+  background: var(--gradient);
   transform: translateY(-1px);
 }
 
@@ -312,12 +416,16 @@ const handleLogout = async () => {
     display: flex;
   }
 
+  .header {
+    padding: 0.75rem 0;
+  }
+
   .nav-menu {
     position: fixed;
     left: -100%;
-    top: 70px;
+    top: var(--mobile-menu-top, 70px);
     flex-direction: column;
-    background-color: #1a1a1a;
+    background-color: var(--header-bg, #1a1a1a);
     width: 100%;
     text-align: center;
     transition: 0.3s;

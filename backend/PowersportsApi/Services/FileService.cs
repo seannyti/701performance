@@ -48,358 +48,6 @@ public class FileService
         _allowedMimeTypes = fileSettings.GetSection("AllowedMimeTypes").Get<string[]>() ?? new[] { "image/jpeg", "image/png", "image/webp" };
     }
 
-    /// <summary>
-    /// Uploads an image for a product with automatic resizing and thumbnail generation.
-    /// </summary>
-    /// <param name="productId">The ID of the product.</param>
-    /// <param name="file">The image file to upload.</param>
-    /// <param name="userId">The ID of the user performing the upload.</param>
-    /// <returns>The created product image record if successful.</returns>
-    public async Task<AuthServiceResult<ProductImage>> UploadProductImageAsync(int productId, IFormFile file, int userId)
-    {
-        try
-        {
-            // Validate product exists
-            var product = await _context.Products.FindAsync(productId);
-            if (product == null)
-            {
-                return AuthServiceResult<ProductImage>.Failure("Product not found.");
-            }
-
-            // Check product image count (max 10)
-            var existingCount = await _context.ProductImages.CountAsync(pi => pi.ProductId == productId);
-            if (existingCount >= 10)
-            {
-                return AuthServiceResult<ProductImage>.Failure("Maximum of 10 images allowed per product.");
-            }
-
-            // Validate file
-            var validationResult = ValidateImageFile(file);
-            if (!validationResult.IsSuccess)
-            {
-                return AuthServiceResult<ProductImage>.Failure(validationResult.ErrorMessage!);
-            }
-
-            // Create upload directory with secure path handling
-            var uploadsDir = GetSecureUploadPath("products", productId.ToString());
-            if (uploadsDir == null)
-            {
-                return AuthServiceResult<ProductImage>.Failure("Invalid upload path.");
-            }
-            Directory.CreateDirectory(uploadsDir);
-
-            // Generate unique filename
-            var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            var fileName = $"{Guid.NewGuid()}{fileExtension}";
-            var thumbnailFileName = $"thumb_{fileName}";
-
-            var filePath = Path.Combine(uploadsDir, fileName);
-            var thumbnailPath = Path.Combine(uploadsDir, thumbnailFileName);
-
-            // Process and save image
-            using (var stream = file.OpenReadStream())
-            {
-                await ProcessAndSaveImageAsync(stream, filePath, thumbnailPath);
-            }
-
-            // Determine if this should be the main image (if no main image exists)
-            var isMain = !await _context.ProductImages.AnyAsync(pi => pi.ProductId == productId && pi.IsMain);
-            
-            // Get next sort order (simpler query for EF Core)
-            var maxSortOrder = await _context.ProductImages
-                .Where(pi => pi.ProductId == productId)
-                .MaxAsync(pi => (int?)pi.SortOrder);
-            var sortOrder = (maxSortOrder ?? 0) + 1;
-
-            // Create database record
-            var productImage = new ProductImage
-            {
-                ProductId = productId,
-                FileName = fileName,
-                OriginalName = file.FileName,
-                FilePath = $"/uploads/products/{productId}/{fileName}",
-                ThumbnailPath = $"/uploads/products/{productId}/{thumbnailFileName}",
-                FileSize = file.Length,
-                MimeType = file.ContentType,
-                IsMain = isMain,
-                SortOrder = sortOrder,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.ProductImages.Add(productImage);
-            
-            // If this is the first/main image, update the Product.ImageUrl
-            if (isMain)
-            {
-                product.ImageUrl = $"/uploads/products/{productId}/thumb_{fileName}";
-                product.UpdatedAt = DateTime.UtcNow;
-            }
-            
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Product image uploaded: {FileName} for Product {ProductId} by User {UserId}", 
-                fileName, productId, userId);
-
-            return AuthServiceResult<ProductImage>.Success(productImage);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading product image for Product {ProductId}: {Message}", productId, ex.Message);
-            return AuthServiceResult<ProductImage>.Failure($"An error occurred while uploading the image: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Uploads and processes an image for a category. Only one image is allowed per category.
-    /// </summary>
-    /// <param name="categoryId">The ID of the category to upload the image for.</param>
-    /// <param name="file">The image file to upload.</param>
-    /// <param name="userId">The ID of the user performing the upload.</param>
-    /// <returns>A result containing the created CategoryImage on success, or an error message on failure.</returns>
-    public async Task<AuthServiceResult<CategoryImage>> UploadCategoryImageAsync(int categoryId, IFormFile file, int userId)
-    {
-        try
-        {
-            // Validate category exists
-            var category = await _context.Categories.FindAsync(categoryId);
-            if (category == null)
-            {
-                return AuthServiceResult<CategoryImage>.Failure("Category not found.");
-            }
-
-            // Check if category already has an image (only one allowed)
-            var existingImage = await _context.CategoryImages.FirstOrDefaultAsync(ci => ci.CategoryId == categoryId);
-            if (existingImage != null)
-            {
-                // Delete existing image first
-                var deleteResult = await DeleteCategoryImageAsync(existingImage.Id, userId);
-                if (!deleteResult.IsSuccess)
-                {
-                    return AuthServiceResult<CategoryImage>.Failure("Failed to replace existing category image.");
-                }
-            }
-
-            // Validate file
-            var validationResult = ValidateImageFile(file);
-            if (!validationResult.IsSuccess)
-            {
-                return AuthServiceResult<CategoryImage>.Failure(validationResult.ErrorMessage!);
-            }
-
-            // Create upload directory with secure path handling
-            var uploadsDir = GetSecureUploadPath("categories", categoryId.ToString());
-            if (uploadsDir == null)
-            {
-                return AuthServiceResult<CategoryImage>.Failure("Invalid upload path.");
-            }
-            Directory.CreateDirectory(uploadsDir);
-
-            // Generate unique filename
-            var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            var fileName = $"{Guid.NewGuid()}{fileExtension}";
-            var thumbnailFileName = $"thumb_{fileName}";
-
-            var filePath = Path.Combine(uploadsDir, fileName);
-            var thumbnailPath = Path.Combine(uploadsDir, thumbnailFileName);
-
-            // Process and save image
-            using (var stream = file.OpenReadStream())
-            {
-                await ProcessAndSaveImageAsync(stream, filePath, thumbnailPath);
-            }
-
-            // Create database record
-            var categoryImage = new CategoryImage
-            {
-                CategoryId = categoryId,
-                FileName = fileName,
-                OriginalName = file.FileName,
-                FilePath = $"/uploads/categories/{categoryId}/{fileName}",
-                ThumbnailPath = $"/uploads/categories/{categoryId}/{thumbnailFileName}",
-                FileSize = file.Length,
-                MimeType = file.ContentType,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.CategoryImages.Add(categoryImage);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Category image uploaded: {FileName} for Category {CategoryId} by User {UserId}", 
-                fileName, categoryId, userId);
-
-            return AuthServiceResult<CategoryImage>.Success(categoryImage);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading category image for Category {CategoryId}: {Message}", categoryId, ex.Message);
-            return AuthServiceResult<CategoryImage>.Failure($"An error occurred while uploading the image: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Deletes a product image from the database and file system. If the deleted image was the main image,
-    /// automatically promotes another image to main or clears the product's ImageUrl if no images remain.
-    /// </summary>
-    /// <param name="imageId">The ID of the image to delete.</param>
-    /// <param name="userId">The ID of the user performing the deletion.</param>
-    /// <returns>A result indicating success or failure of the deletion operation.</returns>
-    public async Task<AuthServiceResult<object>> DeleteProductImageAsync(int imageId, int userId)
-    {
-        try
-        {
-            var image = await _context.ProductImages.FindAsync(imageId);
-            if (image == null)
-            {
-                return AuthServiceResult<object>.Failure("Image not found.");
-            }
-
-            // Delete physical files
-            var fullPath = Path.Combine(_environment.WebRootPath, image.FilePath.TrimStart('/'));
-            var thumbnailFullPath = Path.Combine(_environment.WebRootPath, image.ThumbnailPath.TrimStart('/'));
-
-            if (File.Exists(fullPath))
-                File.Delete(fullPath);
-            
-            if (File.Exists(thumbnailFullPath))
-                File.Delete(thumbnailFullPath);
-
-            // If this was the main image, set another image as main
-            if (image.IsMain)
-            {
-                var nextMainImage = await _context.ProductImages
-                    .Where(pi => pi.ProductId == image.ProductId && pi.Id != imageId)
-                    .OrderBy(pi => pi.SortOrder)
-                    .FirstOrDefaultAsync();
-
-                if (nextMainImage != null)
-                {
-                    nextMainImage.IsMain = true;
-                    
-                    // Update Product.ImageUrl to the new main image
-                    var product = await _context.Products.FindAsync(image.ProductId);
-                    if (product != null)
-                    {
-                        product.ImageUrl = $"/uploads/products/{image.ProductId}/thumb_{nextMainImage.FileName}";
-                        product.UpdatedAt = DateTime.UtcNow;
-                    }
-                }
-                else
-                {
-                    // No more images, clear Product.ImageUrl
-                    var product = await _context.Products.FindAsync(image.ProductId);
-                    if (product != null)
-                    {
-                        product.ImageUrl = string.Empty;
-                        product.UpdatedAt = DateTime.UtcNow;
-                    }
-                }
-            }
-
-            _context.ProductImages.Remove(image);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Product image deleted: {ImageId} by User {UserId}", imageId, userId);
-            
-            return AuthServiceResult<object>.Success(new { message = "Image deleted successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting product image {ImageId}", imageId);
-            return AuthServiceResult<object>.Failure("An error occurred while deleting the image.");
-        }
-    }
-
-    /// <summary>
-    /// Deletes a category image from the database and file system.
-    /// </summary>
-    /// <param name="imageId">The ID of the image to delete.</param>
-    /// <param name="userId">The ID of the user performing the deletion.</param>
-    /// <returns>A result indicating success or failure of the deletion operation.</returns>
-    public async Task<AuthServiceResult<object>> DeleteCategoryImageAsync(int imageId, int userId)
-    {
-        try
-        {
-            var image = await _context.CategoryImages.FindAsync(imageId);
-            if (image == null)
-            {
-                return AuthServiceResult<object>.Failure("Image not found.");
-            }
-
-            // Delete physical files
-            var fullPath = Path.Combine(_environment.WebRootPath, image.FilePath.TrimStart('/'));
-            var thumbnailFullPath = Path.Combine(_environment.WebRootPath, image.ThumbnailPath.TrimStart('/'));
-
-            if (File.Exists(fullPath))
-                File.Delete(fullPath);
-            
-            if (File.Exists(thumbnailFullPath))
-                File.Delete(thumbnailFullPath);
-
-            _context.CategoryImages.Remove(image);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Category image deleted: {ImageId} by User {UserId}", imageId, userId);
-            
-            return AuthServiceResult<object>.Success(new { message = "Image deleted successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting category image {ImageId}", imageId);
-            return AuthServiceResult<object>.Failure("An error occurred while deleting the image.");
-        }
-    }
-
-    /// <summary>
-    /// Sets a specific product image as the main/primary image. Unsets the previous main image
-    /// and updates the product's ImageUrl to reflect the new main image.
-    /// </summary>
-    /// <param name="imageId">The ID of the image to set as main.</param>
-    /// <param name="userId">The ID of the user performing the operation.</param>
-    /// <returns>A result indicating success or failure of the operation.</returns>
-    public async Task<AuthServiceResult<object>> SetMainProductImageAsync(int imageId, int userId)
-    {
-        try
-        {
-            var image = await _context.ProductImages.FindAsync(imageId);
-            if (image == null)
-            {
-                return AuthServiceResult<object>.Failure("Image not found.");
-            }
-
-            // Unset current main image
-            var currentMain = await _context.ProductImages
-                .FirstOrDefaultAsync(pi => pi.ProductId == image.ProductId && pi.IsMain);
-            
-            if (currentMain != null)
-            {
-                currentMain.IsMain = false;
-            }
-
-            // Set new main image
-            image.IsMain = true;
-            
-            // Update Product.ImageUrl to reflect the new main image
-            var product = await _context.Products.FindAsync(image.ProductId);
-            if (product != null)
-            {
-                product.ImageUrl = $"/uploads/products/{image.ProductId}/thumb_{image.FileName}";
-                product.UpdatedAt = DateTime.UtcNow;
-            }
-            
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Main product image set: {ImageId} for Product {ProductId} by User {UserId}", 
-                imageId, image.ProductId, userId);
-
-            return AuthServiceResult<object>.Success(new { message = "Main image updated successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error setting main product image {ImageId}", imageId);
-            return AuthServiceResult<object>.Failure("An error occurred while updating the main image.");
-        }
-    }
-
     private AuthServiceResult<object> ValidateImageFile(IFormFile file)
     {
         if (file == null || file.Length == 0)
@@ -509,168 +157,6 @@ public class FileService
     }
 
     /// <summary>
-    /// Generic file upload method that routes to specific upload handlers based on entity type.
-    /// </summary>
-    /// <param name="file">The file to upload.</param>
-    /// <param name="entityType">The type of entity ("product" or "category").</param>
-    /// <param name="entityId">The ID of the entity to associate the file with.</param>
-    /// <returns>A result containing upload details on success, or an error message on failure.</returns>
-    public async Task<AuthServiceResult<object>> UploadFileAsync(IFormFile file, string entityType, int entityId)
-    {
-        var userId = GetCurrentUserId();
-        
-        return entityType.ToLower() switch
-        {
-            "product" => await UploadProductImageAsync(entityId, file, userId) is var result 
-                ? (result.IsSuccess 
-                    ? AuthServiceResult<object>.Success(new { 
-                        fileName = result.Data?.FileName, 
-                        fileSize = result.Data?.FileSize, 
-                        uploadDate = result.Data?.CreatedAt 
-                      }) 
-                    : AuthServiceResult<object>.Failure(result.ErrorMessage ?? "Upload failed"))
-                : AuthServiceResult<object>.Failure("Upload failed"),
-                
-            "category" => await UploadCategoryImageAsync(entityId, file, userId) is var catResult 
-                ? (catResult.IsSuccess 
-                    ? AuthServiceResult<object>.Success(new { 
-                        fileName = catResult.Data?.FileName, 
-                        fileSize = catResult.Data?.FileSize, 
-                        uploadDate = catResult.Data?.CreatedAt 
-                      }) 
-                    : AuthServiceResult<object>.Failure(catResult.ErrorMessage ?? "Upload failed"))
-                : AuthServiceResult<object>.Failure("Upload failed"),
-                
-            _ => AuthServiceResult<object>.Failure($"Unsupported entity type: {entityType}")
-        };
-    }
-
-    /// <summary>
-    /// Generic file deletion method that routes to specific delete handlers based on entity type.
-    /// </summary>
-    /// <param name="fileName">The name of the file to delete.</param>
-    /// <param name="entityType">The type of entity ("product" or "category").</param>
-    /// <param name="entityId">The ID of the entity the file is associated with.</param>
-    /// <returns>A result indicating success or failure of the deletion operation.</returns>
-    public async Task<AuthServiceResult<object>> DeleteFileAsync(string fileName, string entityType, int entityId)
-    {
-        var userId = GetCurrentUserId();
-        
-        try
-        {
-            if (entityType.ToLower() == "product")
-            {
-                var image = await _context.ProductImages
-                    .FirstOrDefaultAsync(pi => pi.ProductId == entityId && pi.FileName == fileName);
-                if (image != null)
-                {
-                    return await DeleteProductImageAsync(image.Id, userId);
-                }
-            }
-            else if (entityType.ToLower() == "category")
-            {
-                var image = await _context.CategoryImages
-                    .FirstOrDefaultAsync(ci => ci.CategoryId == entityId && ci.FileName == fileName);
-                if (image != null)
-                {
-                    return await DeleteCategoryImageAsync(image.Id, userId);
-                }
-            }
-            
-            return AuthServiceResult<object>.Failure("Image not found");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting file {FileName} for {EntityType} {EntityId}", fileName, entityType, entityId);
-            return AuthServiceResult<object>.Failure($"Error deleting file: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Retrieves all files associated with a specific entity.
-    /// </summary>
-    /// <param name="entityType">The type of entity ("product" or "category").</param>
-    /// <param name="entityId">The ID of the entity to retrieve files for.</param>
-    /// <returns>A list of file metadata objects including fileName, fileSize, uploadDate, and isDefault.</returns>
-    public async Task<List<dynamic>> GetEntityFilesAsync(string entityType, int entityId)
-    {
-        try
-        {
-            if (entityType.ToLower() == "product")
-            {
-                var images = await _context.ProductImages
-                    .Where(pi => pi.ProductId == entityId)
-                    .OrderByDescending(pi => pi.IsMain)
-                    .ThenBy(pi => pi.CreatedAt)
-                    .ToListAsync();
-                    
-                return images.Select(i => (dynamic)new {
-                    fileName = i.FileName,
-                    fileSize = i.FileSize,
-                    uploadDate = i.CreatedAt,
-                    isDefault = i.IsMain
-                }).ToList();
-            }
-            else if (entityType.ToLower() == "category")
-            {
-                var image = await _context.CategoryImages
-                    .Where(ci => ci.CategoryId == entityId)
-                    .FirstOrDefaultAsync();
-                    
-                if (image != null)
-                {
-                    return new List<dynamic> { new {
-                        fileName = image.FileName,
-                        fileSize = image.FileSize,
-                        uploadDate = image.CreatedAt,
-                        isDefault = true
-                    }};
-                }
-            }
-            
-            return new List<dynamic>();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting files for {EntityType} {EntityId}", entityType, entityId);
-            return new List<dynamic>();
-        }
-    }
-
-    /// <summary>
-    /// Sets a specific image as the default/main image for an entity. Only applies to products.
-    /// </summary>
-    /// <param name="fileName">The name of the file to set as default.</param>
-    /// <param name="entityType">The type of entity ("product" or "category").</param>
-    /// <param name="entityId">The ID of the entity the file is associated with.</param>
-    /// <returns>A result indicating success or failure of the operation.</returns>
-    public async Task<AuthServiceResult<object>> SetDefaultImageAsync(string fileName, string entityType, int entityId)
-    {
-        var userId = GetCurrentUserId();
-        
-        try
-        {
-            if (entityType.ToLower() == "product")
-            {
-                var image = await _context.ProductImages
-                    .FirstOrDefaultAsync(pi => pi.ProductId == entityId && pi.FileName == fileName);
-                if (image != null)
-                {
-                    return await SetMainProductImageAsync(image.Id, userId);
-                }
-            }
-            // Categories only have one image, so setting default doesn't apply
-            
-            return AuthServiceResult<object>.Failure("Image not found");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error setting default image {FileName} for {EntityType} {EntityId}", fileName, entityType, entityId);
-            return AuthServiceResult<object>.Failure($"Error setting default image: {ex.Message}");
-        }
-    }
-
-    /// <summary>
     /// Constructs a secure upload path by validating and sanitizing path components.
     /// Prevents path traversal attacks by ensuring all paths stay within the uploads directory.
     /// </summary>
@@ -721,5 +207,378 @@ public class FileService
     {
         var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(userIdClaim, out var userId) ? userId : 1;
+    }
+
+    // ===== Media Library Methods =====
+
+    /// <summary>
+    /// Upload a file to the media library
+    /// </summary>
+    public async Task<AuthServiceResult<MediaFile>> UploadToMediaLibraryAsync(IFormFile file, int userId, string? altText = null, string? caption = null, string? tags = null, int? sectionId = null)
+    {
+        try
+        {
+            // Validate file
+            if (file == null || file.Length == 0)
+            {
+                return AuthServiceResult<MediaFile>.Failure("No file uploaded");
+            }
+
+            if (file.Length > _maxFileSize)
+            {
+                return AuthServiceResult<MediaFile>.Failure($"File size exceeds maximum limit of {_maxFileSize / 1024 / 1024}MB");
+            }
+
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!_allowedExtensions.Contains(extension))
+            {
+                return AuthServiceResult<MediaFile>.Failure("File type not allowed");
+            }
+
+            if (!_allowedMimeTypes.Contains(file.ContentType))
+            {
+                return AuthServiceResult<MediaFile>.Failure("File MIME type not allowed");
+            }
+
+            // Get section name for folder organization
+            string sectionFolder = "General"; // Default folder for files without a section
+            
+            if (sectionId.HasValue)
+            {
+                var section = await _context.MediaSections.FindAsync(sectionId.Value);
+                if (section != null)
+                {
+                    // Create safe folder name from section name
+                    sectionFolder = string.Concat(section.Name.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == ' '))
+                        .Trim()
+                        .Replace(" ", "_");
+                }
+            }
+
+            // Generate storage path organized by section
+            var uploadDate = DateTime.UtcNow;
+            var uploadsFolder = GetSecureUploadPath("media", sectionFolder);
+            
+            if (uploadsFolder == null)
+            {
+                return AuthServiceResult<MediaFile>.Failure("Failed to create upload directory");
+            }
+
+            Directory.CreateDirectory(uploadsFolder);
+
+            // Generate unique filename
+            var originalFileName = Path.GetFileNameWithoutExtension(file.FileName);
+            var safeFileName = string.Concat(originalFileName.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_'));
+            var storedFileName = $"{safeFileName}_{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadsFolder, storedFileName);
+            var relativeFilePath = $"/uploads/media/{sectionFolder}/{storedFileName}";
+
+            int? width = null;
+            int? height = null;
+            string? thumbnailPath = null;
+
+            // Process image if it's an image file
+            if (file.ContentType.StartsWith("image/"))
+            {
+                using (var image = await Image.LoadAsync(file.OpenReadStream()))
+                {
+                    width = image.Width;
+                    height = image.Height;
+
+                    // Resize if too large
+                    if (image.Width > _maxImageWidth)
+                    {
+                        image.Mutate(x => x.Resize(_maxImageWidth, 0));
+                    }
+
+                    // Save main image
+                    var encoder = GetImageEncoder(extension);
+                    await image.SaveAsync(filePath, encoder);
+
+                    // Generate thumbnail
+                    var thumbnailFileName = $"{Path.GetFileNameWithoutExtension(storedFileName)}_thumb{extension}";
+                    var thumbnailFilePath = Path.Combine(uploadsFolder, thumbnailFileName);
+                    thumbnailPath = $"/uploads/media/{sectionFolder}/{thumbnailFileName}";
+
+                    using (var thumbnail = await Image.LoadAsync(file.OpenReadStream()))
+                    {
+                        thumbnail.Mutate(x => x.Resize(_thumbnailSize, 0));
+                        await thumbnail.SaveAsync(thumbnailFilePath, encoder);
+                    }
+                }
+            }
+            else
+            {
+                // For non-image files, just save them
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
+            }
+
+            // Determine media type
+            var mediaType = MediaType.Other;
+            if (file.ContentType.StartsWith("image/")) mediaType = MediaType.Image;
+            else if (file.ContentType.StartsWith("video/")) mediaType = MediaType.Video;
+            else if (file.ContentType.StartsWith("application/pdf") || file.ContentType.Contains("document")) mediaType = MediaType.Document;
+
+            // Create database record
+            var mediaFile = new MediaFile
+            {
+                FileName = file.FileName,
+                StoredFileName = storedFileName,
+                FilePath = relativeFilePath,
+                ThumbnailPath = thumbnailPath,
+                MimeType = file.ContentType,
+                FileSize = file.Length,
+                MediaType = mediaType,
+                Width = width,
+                Height = height,
+                AltText = altText,
+                Caption = caption,
+                Tags = tags,
+                SectionId = sectionId,
+                UploadedByUserId = userId,
+                UploadedAt = uploadDate
+            };
+
+            _context.MediaFiles.Add(mediaFile);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("File uploaded to media library: {FileName} by user {UserId}", file.FileName, userId);
+
+            return AuthServiceResult<MediaFile>.Success(mediaFile);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading file to media library");
+            return AuthServiceResult<MediaFile>.Failure("An error occurred while uploading the file");
+        }
+    }
+
+    /// <summary>
+    /// Get media files with optional filtering
+    /// </summary>
+    public async Task<(List<MediaFile> Files, int TotalCount)> GetMediaFilesAsync(
+        string? search = null,
+        MediaType? mediaType = null,
+        int? sectionId = null,
+        int page = 1,
+        int pageSize = 50)
+    {
+        var query = _context.MediaFiles.AsQueryable();
+
+        // Apply filters
+        if (!string.IsNullOrEmpty(search))
+        {
+            search = search.ToLower();
+            query = query.Where(m => 
+                m.FileName.ToLower().Contains(search) ||
+                (m.AltText != null && m.AltText.ToLower().Contains(search)) ||
+                (m.Caption != null && m.Caption.ToLower().Contains(search)) ||
+                (m.Tags != null && m.Tags.ToLower().Contains(search)));
+        }
+
+        if (mediaType.HasValue)
+        {
+            query = query.Where(m => m.MediaType == mediaType.Value);
+        }
+
+        if (sectionId.HasValue)
+        {
+            query = query.Where(m => m.SectionId == sectionId.Value);
+        }
+
+        var totalCount = await query.CountAsync();
+
+        var files = await query
+            .OrderByDescending(m => m.UploadedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Include(m => m.UploadedByUser)
+            .ToListAsync();
+
+        return (files, totalCount);
+    }
+
+    /// <summary>
+    /// Get a single media file by ID
+    /// </summary>
+    public async Task<MediaFile?> GetMediaFileByIdAsync(int id)
+    {
+        return await _context.MediaFiles
+            .Include(m => m.UploadedByUser)
+            .FirstOrDefaultAsync(m => m.Id == id);
+    }
+
+    /// <summary>
+    /// Update media file metadata
+    /// </summary>
+    public async Task<AuthServiceResult<MediaFile>> UpdateMediaFileAsync(int id, string? altText, string? caption, string? tags)
+    {
+        try
+        {
+            var mediaFile = await _context.MediaFiles.FindAsync(id);
+            if (mediaFile == null)
+            {
+                return AuthServiceResult<MediaFile>.Failure("Media file not found");
+            }
+
+            mediaFile.AltText = altText;
+            mediaFile.Caption = caption;
+            mediaFile.Tags = tags;
+            mediaFile.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return AuthServiceResult<MediaFile>.Success(mediaFile);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating media file {Id}", id);
+            return AuthServiceResult<MediaFile>.Failure("An error occurred while updating the media file");
+        }
+    }
+
+    /// <summary>
+    /// Delete a media file
+    /// </summary>
+    public async Task<AuthServiceResult<object>> DeleteMediaFileAsync(int id)
+    {
+        try
+        {
+            var mediaFile = await _context.MediaFiles.FindAsync(id);
+            if (mediaFile == null)
+            {
+                return AuthServiceResult<object>.Failure("Media file not found");
+            }
+
+            // Delete physical files
+            var basePath = _environment.WebRootPath;
+            var mainFilePath = Path.Combine(basePath, mediaFile.FilePath.TrimStart('/'));
+            
+            if (File.Exists(mainFilePath))
+            {
+                File.Delete(mainFilePath);
+            }
+
+            if (!string.IsNullOrEmpty(mediaFile.ThumbnailPath))
+            {
+                var thumbnailPath = Path.Combine(basePath, mediaFile.ThumbnailPath.TrimStart('/'));
+                if (File.Exists(thumbnailPath))
+                {
+                    File.Delete(thumbnailPath);
+                }
+            }
+
+            // Delete database record
+            _context.MediaFiles.Remove(mediaFile);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Media file deleted: {Id}", id);
+
+            return AuthServiceResult<object>.Success(new { });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting media file {Id}", id);
+            return AuthServiceResult<object>.Failure("An error occurred while deleting the media file");
+        }
+    }
+
+    /// <summary>
+    /// Delete media section associated with an entity and all its files
+    /// </summary>
+    /// <param name="entityId">The ID of the entity (Category, Product, etc.)</param>
+    /// <param name="entityType">Type of entity: "Category", "Product", "TeamMember", etc.</param>
+    /// <returns>Number of files deleted</returns>
+    public async Task<(bool Success, int DeletedFileCount, string? ErrorMessage)> DeleteEntityMediaSectionAsync(int entityId, string entityType)
+    {
+        try
+        {
+            // Find the media section by entity type
+            MediaSection? mediaSection = null;
+            
+            switch (entityType.ToLower())
+            {
+                case "category":
+                    mediaSection = await _context.MediaSections
+                        .Include(s => s.MediaFiles)
+                        .FirstOrDefaultAsync(s => s.CategoryId == entityId);
+                    break;
+                // Add more cases as needed for future entities
+                default:
+                    return (false, 0, $"Unsupported entity type: {entityType}");
+            }
+            
+            if (mediaSection == null)
+            {
+                // No section found - not an error, just nothing to delete
+                return (true, 0, null);
+            }
+
+            var basePath = _environment.WebRootPath;
+            var deletedFileCount = 0;
+            
+            // Delete all media files in the section
+            foreach (var mediaFile in mediaSection.MediaFiles.ToList())
+            {
+                // Delete physical main file
+                var mainFilePath = Path.Combine(basePath, mediaFile.FilePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(mainFilePath))
+                {
+                    File.Delete(mainFilePath);
+                    _logger.LogInformation("Deleted physical file: {FilePath}", mainFilePath);
+                }
+
+                // Delete physical thumbnail
+                if (!string.IsNullOrEmpty(mediaFile.ThumbnailPath))
+                {
+                    var thumbnailPath = Path.Combine(basePath, mediaFile.ThumbnailPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                    if (File.Exists(thumbnailPath))
+                    {
+                        File.Delete(thumbnailPath);
+                        _logger.LogInformation("Deleted thumbnail: {ThumbnailPath}", thumbnailPath);
+                    }
+                }
+
+                // Delete database record
+                _context.MediaFiles.Remove(mediaFile);
+                deletedFileCount++;
+            }
+
+            // Delete the section folder
+            var sectionFolderName = string.Concat(mediaSection.Name.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == ' '))
+                .Trim()
+                .Replace(" ", "_");
+            var sectionFolderPath = Path.Combine(basePath, "uploads", "media", sectionFolderName);
+            
+            if (Directory.Exists(sectionFolderPath))
+            {
+                try
+                {
+                    Directory.Delete(sectionFolderPath, recursive: true);
+                    _logger.LogInformation("Deleted section folder: {FolderPath}", sectionFolderPath);
+                }
+                catch (Exception folderEx)
+                {
+                    _logger.LogWarning(folderEx, "Could not delete section folder: {FolderPath}", sectionFolderPath);
+                }
+            }
+
+            // Delete the media section
+            _context.MediaSections.Remove(mediaSection);
+            await _context.SaveChangesAsync();
+            
+            _logger.LogInformation("Deleted media section {SectionId} for {EntityType} {EntityId} with {FileCount} files", 
+                mediaSection.Id, entityType, entityId, deletedFileCount);
+
+            return (true, deletedFileCount, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting media section for {EntityType} {EntityId}", entityType, entityId);
+            return (false, 0, "An error occurred while deleting the media section");
+        }
     }
 }

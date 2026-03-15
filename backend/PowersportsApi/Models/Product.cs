@@ -47,6 +47,10 @@ public class Product
     [Column(TypeName = "decimal(18,2)")]
     public decimal? CostPrice { get; set; }
 
+    /// <summary>Product specifications stored as JSON (e.g., Engine, Power, Weight)</summary>
+    [Column(TypeName = "nvarchar(max)")]
+    public string? Specifications { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

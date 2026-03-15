@@ -178,7 +178,11 @@ const resendVerification = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(
+    var(--gradient-direction, 135deg),
+    var(--gradient-start, #667eea),
+    var(--gradient-end, #764ba2)
+  );
   padding: 2rem;
 }
 
@@ -200,7 +204,7 @@ const resendVerification = async () => {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #ff6b35, #f7931e, #ffd700);
+  background: var(--gradient);
 }
 
 .login-header {
@@ -291,7 +295,7 @@ const resendVerification = async () => {
 }
 
 .login-btn {
-  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  background: var(--gradient);
   color: white;
   border: none;
   padding: 0.875rem 1.5rem;

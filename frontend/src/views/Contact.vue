@@ -96,42 +96,42 @@
 
         <!-- Contact Information Section -->
         <div class="contact-info-section">
-          <h2 class="section-title">Get in Touch</h2>
+          <h2 class="section-title">{{ getSetting('contact_section_title', 'Get in Touch') }}</h2>
           
           <div class="contact-cards">
             <div class="contact-card" v-if="getSetting('contact_address')">
               <div class="contact-icon">📍</div>
               <div class="contact-details">
-                <h3>Visit Our Showroom</h3>
+                <h3>{{ getSetting('contact_address_title', 'Visit Our Showroom') }}</h3>
                 <p>{{ getSetting('contact_address', '123 Adventure Way, Motorville, MV 12345') }}</p>
-                <p class="contact-note">Open for personal consultations</p>
+                <p class="contact-note">{{ getSetting('contact_address_note', 'Open for personal consultations') }}</p>
               </div>
             </div>
 
             <div class="contact-card" v-if="getSetting('contact_phone')">
               <div class="contact-icon">📞</div>
               <div class="contact-details">
-                <h3>Call Us</h3>
+                <h3>{{ getSetting('contact_phone_title', 'Call Us') }}</h3>
                 <p><a :href="`tel:${getSetting('contact_phone', '(555) 123-4567').replace(/[^0-9]/g, '')}`">{{ getSetting('contact_phone', '(555) 123-4567') }}</a></p>
-                <p class="contact-note">Mon-Fri: 9AM-6PM<br>Sat: 9AM-4PM</p>
+                <p class="contact-note" v-html="getSetting('contact_hours', 'Mon-Fri: 9AM-6PM<br>Sat: 9AM-4PM').replace(/\n/g, '<br>')"></p>
               </div>
             </div>
 
             <div class="contact-card" v-if="getSetting('contact_email')">
               <div class="contact-icon">✉️</div>
               <div class="contact-details">
-                <h3>Email Us</h3>
+                <h3>{{ getSetting('contact_email_title', 'Email Us') }}</h3>
                 <p><a :href="`mailto:${getSetting('contact_email', 'info@powersportsshowcase.com')}`">{{ getSetting('contact_email', 'info@powersportsshowcase.com') }}</a></p>
-                <p class="contact-note">We respond within 24 hours</p>
+                <p class="contact-note">{{ getSetting('contact_email_note', 'We respond within 24 hours') }}</p>
               </div>
             </div>
 
             <div class="contact-card">
               <div class="contact-icon">💬</div>
               <div class="contact-details">
-                <h3>Live Chat</h3>
-                <p>Available during business hours</p>
-                <p class="contact-note">Quick answers to your questions</p>
+                <h3>{{ getSetting('contact_livechat_title', 'Live Chat') }}</h3>
+                <p>{{ getSetting('contact_livechat_text', 'Available during business hours') }}</p>
+                <p class="contact-note">{{ getSetting('contact_livechat_note', 'Quick answers to your questions') }}</p>
               </div>
             </div>
           </div>
@@ -140,11 +140,7 @@
           <div class="additional-info">
             <h3>Why Contact Us?</h3>
             <ul class="info-list">
-              <li>Expert advice on product selection</li>
-              <li>Personalized recommendations</li>
-              <li>Technical support and guidance</li>
-              <li>Financing and warranty information</li>
-              <li>Schedule test rides and demos</li>
+              <li v-for="(reason, index) in contactReasons" :key="index">{{ reason.title }}</li>
             </ul>
           </div>
         </div>
@@ -154,11 +150,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import type { ContactForm } from '@/types';
 import { useSettings } from '@/composables/useSettings';
+import { SUCCESS_MESSAGE_DURATION_MS } from '@/constants';
 
 const { getSetting } = useSettings();
+
+// Parse contact reasons from settings
+const contactReasons = computed(() => {
+  try {
+    const reasonsJson = getSetting('contact_reasons', '[]');
+    return JSON.parse(reasonsJson);
+  } catch {
+    return [
+      { title: 'Expert advice on product selection' },
+      { title: 'Personalized recommendations' },
+      { title: 'Technical support and guidance' },
+      { title: 'Financing and warranty information' },
+      { title: 'Schedule test rides and demos' }
+    ];
+  }
+});
 
 // Form data
 const form = reactive<ContactForm & { subject: string }>({
@@ -256,7 +269,7 @@ const handleSubmit = async () => {
       
       setTimeout(() => {
         showSuccess.value = false;
-      }, 5000);
+      }, SUCCESS_MESSAGE_DURATION_MS);
     } else {
       submitError.value = data.message || 'Failed to send message. Please try again later.';
     }

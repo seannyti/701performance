@@ -53,9 +53,8 @@
       </div>
 
       <!-- Loading State -->
-      <div v-if="loading" class="loading-state">
+      <div v-if="isLoading" class="loading-overlay">
         <div class="spinner"></div>
-        <p>Loading...</p>
       </div>
 
       <!-- Error State -->
@@ -65,7 +64,7 @@
       </div>
 
       <!-- Categories Tab -->
-      <div v-show="activeTab === 'categories' && !loading && !error" class="tab-content">
+      <div v-show="activeTab === 'categories' && !isLoading && !error" class="tab-content">
         <div class="categories-grid">
           <div v-for="category in categories" :key="category.id" class="category-card">
             <div class="category-header">
@@ -94,7 +93,9 @@
               <button 
                 @click="toggleCategoryStatus(category)" 
                 :class="['btn', 'btn-sm', category.isActive ? 'btn-warning' : 'btn-success']"
+                :disabled="isActionLoading(`toggleCategory-${category.id}`)"
               >
+                <span v-if="isActionLoading(`toggleCategory-${category.id}`)" class="btn-spinner"></span>
                 {{ category.isActive ? 'Disable' : 'Enable' }}
               </button>
               <button 
@@ -110,7 +111,7 @@
       </div>
 
       <!-- Products Tab -->
-      <div v-show="activeTab === 'products' && !loading && !error" class="tab-content">
+      <div v-show="activeTab === 'products' && !isLoading && !error" class="tab-content">
         <!-- Category Filter -->
         <div class="filters">
           <label class="filter-label">Filter by Category:</label>
@@ -179,7 +180,7 @@
       </div>
 
       <!-- Inventory Tab -->
-      <div v-show="activeTab === 'inventory' && !loading && !error" class="tab-content">
+      <div v-show="activeTab === 'inventory' && !isLoading && !error" class="tab-content">
         <!-- Summary Cards -->
         <div class="inventory-summary">
           <div class="summary-card">
@@ -304,7 +305,7 @@
       </div>
 
       <!-- Reports Tab -->
-      <div v-show="activeTab === 'reports' && !loading && !error" class="tab-content">
+      <div v-show="activeTab === 'reports' && !isLoading && !error" class="tab-content">
         <div class="reports-toolbar no-print">
           <div class="form-row" style="align-items: flex-end; gap: 1rem; flex-wrap: wrap;">
             <div class="form-group" style="min-width: 140px;">
@@ -474,18 +475,22 @@
               </label>
             </div>
 
-            <!-- Category Image Upload -->
+            <!-- Category Image -->
             <div v-if="editingCategory" class="form-section">
               <h3 class="section-title">Category Image</h3>
-              <PhotoUploader 
-                ref="categoryPhotoUploader"
-                entity-type="category"
-                :entity-id="editingCategory.id"
-                :max-files="1"
-              />
+              
+              <div v-if="editingCategory.imageUrl" class="current-image">
+                <img :src="getMediaUrl(editingCategory.imageUrl)" alt="Category image" class="preview-image" />
+                <button @click="removeCategoryImage" type="button" class="btn btn-sm btn-danger">Remove Image</button>
+              </div>
+              
+              <button @click="openCategoryMediaPicker" type="button" class="btn btn-secondary">
+                {{ editingCategory.imageUrl ? 'Change Image' : 'Select from Library' }}
+              </button>
+              <small class="form-hint">Select an image from the Media Library</small>
             </div>
             <div v-else class="form-hint-box">
-              💡 Save the category first to upload an image
+              💡 Save the category first to select an image
             </div>
 
             <div v-if="categoryFormError" class="alert alert-danger">
@@ -496,8 +501,9 @@
               <button type="button" @click="closeCategoryModal" class="btn btn-secondary">
                 Cancel
               </button>
-              <button type="submit" class="btn btn-primary" :disabled="saving">
-                {{ saving ? 'Saving...' : 'Save Category' }}
+              <button type="submit" class="btn btn-primary" :disabled="isActionLoading('saveCategory')">
+                <span v-if="isActionLoading('saveCategory')" class="btn-spinner"></span>
+                {{ isActionLoading('saveCategory') ? 'Saving...' : 'Save Category' }}
               </button>
             </div>
           </form>
@@ -583,15 +589,25 @@
             <!-- Product Images -->
             <div v-if="editingProduct" class="form-section">
               <h3 class="section-title">Product Images</h3>
-              <PhotoUploader 
-                ref="productPhotoUploader"
-                entity-type="product"
-                :entity-id="editingProduct.id"
-                :max-files="10"
-              />
+              
+              <div v-if="productImages.length > 0" class="images-grid">
+                <div v-for="img in productImages" :key="img.id" class="image-card">
+                  <img :src="getMediaUrl(img.thumbnailPath || img.filePath)" :alt="img.altText || img.fileName" />
+                  <span v-if="img.isMain" class="main-badge">Main</span>
+                  <div class="image-actions">
+                    <button v-if="!img.isMain" @click="setProductImageAsMain(img.id)" type="button" class="btn btn-xs">⭐ Set Main</button>
+                    <button @click="removeProductImage(img.id)" type="button" class="btn btn-xs btn-danger">Remove</button>
+                  </div>
+                </div>
+              </div>
+              
+              <button @click="openProductMediaPicker" type="button" class="btn btn-secondary">
+                {{ productImages.length > 0 ? 'Add More Images' : 'Select from Library' }}
+              </button>
+              <small class="form-hint">Up to 10 images supported</small>
             </div>
             <div v-else class="form-hint-box">
-              💡 Save the product first to upload images (up to 10 images supported)
+              💡 Save the product first to add images
             </div>
 
             <!-- Product Options -->
@@ -647,6 +663,43 @@
               </div>
             </div>
 
+            <!-- Product Specifications -->
+            <div class="form-section">
+              <h3 class="section-title">📋 Specifications</h3>
+              <small class="form-hint mb-3">Add technical specifications for this product (e.g., Engine, Power, Weight)</small>
+              
+              <div v-if="productForm.specifications.length > 0" class="specs-list">
+                <div v-for="(spec, index) in productForm.specifications" :key="index" class="spec-item">
+                  <input 
+                    v-model="spec.key" 
+                    type="text" 
+                    class="form-control spec-key" 
+                    placeholder="e.g., Engine"
+                    maxlength="100"
+                  />
+                  <input 
+                    v-model="spec.value" 
+                    type="text" 
+                    class="form-control spec-value" 
+                    placeholder="e.g., 999cc Inline-4"
+                    maxlength="200"
+                  />
+                  <button 
+                    @click="removeSpecification(index)" 
+                    type="button" 
+                    class="btn btn-sm btn-danger spec-remove"
+                    title="Remove specification"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+              
+              <button @click="addSpecification" type="button" class="btn btn-secondary mt-2">
+                <span class="icon">+</span> Add Specification
+              </button>
+            </div>
+
             <div v-if="productFormError" class="alert alert-danger">
               {{ productFormError }}
             </div>
@@ -655,8 +708,9 @@
               <button type="button" @click="closeProductModal" class="btn btn-secondary">
                 Cancel
               </button>
-              <button type="submit" class="btn btn-primary" :disabled="saving">
-                {{ saving ? 'Saving...' : 'Save Product' }}
+              <button type="submit" class="btn btn-primary" :disabled="isActionLoading('saveProduct')">
+                <span v-if="isActionLoading('saveProduct')" class="btn-spinner"></span>
+                {{ isActionLoading('saveProduct') ? 'Saving...' : 'Save Product' }}
               </button>
             </div>
           </form>
@@ -679,8 +733,9 @@
               <button @click="showDeleteCategoryModal = false" class="btn btn-secondary">
                 Cancel
               </button>
-              <button @click="deleteCategory" class="btn btn-danger" :disabled="deleting">
-                {{ deleting ? 'Deleting...' : 'Delete' }}
+              <button @click="deleteCategory" class="btn btn-danger" :disabled="isActionLoading('deleteCategory')">
+                <span v-if="isActionLoading('deleteCategory')" class="btn-spinner"></span>
+                {{ isActionLoading('deleteCategory') ? 'Deleting...' : 'Delete' }}
               </button>
             </div>
           </div>
@@ -703,13 +758,29 @@
               <button @click="showDeleteProductModal = false" class="btn btn-secondary">
                 Cancel
               </button>
-              <button @click="deleteProduct" class="btn btn-danger" :disabled="deleting">
-                {{ deleting ? 'Deleting...' : 'Delete' }}
+              <button @click="deleteProduct" class="btn btn-danger" :disabled="isActionLoading('deleteProduct')">
+                <span v-if="isActionLoading('deleteProduct')" class="btn-spinner"></span>
+                {{ isActionLoading('deleteProduct') ? 'Deleting...' : 'Delete' }}
               </button>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- Media Pickers -->
+      <MediaPicker 
+        :is-open="showCategoryMediaPicker"
+        @close="showCategoryMediaPicker = false"
+        @select="handleCategoryMediaSelection"
+        media-type="Image"
+      />
+      
+      <MediaPicker 
+        :is-open="showProductMediaPicker"
+        @close="showProductMediaPicker = false"
+        @select="handleProductMediaSelection"
+        media-type="Image"
+      />
     </div>
   </AdminLayout>
 </template>
@@ -717,9 +788,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
-import PhotoUploader from '@/components/PhotoUploader.vue'
+import MediaPicker from '@/components/MediaPicker.vue'
 import { useAuthStore } from '@/stores/auth'
 import { logDebug, logError } from '@/services/logger'
+import { useToast } from '@/composables/useToast'
+import { useLoadingState } from '@/composables/useLoadingState'
+import { apiClient, apiGet, apiPost, apiPut, apiDelete } from '@/utils/apiClient'
+import { API_URL, getMediaUrl } from '@/utils/api-config'
 
 interface Category {
   id: number
@@ -743,12 +818,14 @@ interface Product {
   stockQuantity: number
   lowStockThreshold: number
   costPrice?: number | null
+  specifications?: string | null
   createdAt: string
   updatedAt: string
 }
 
 const authStore = useAuthStore()
-const API_URL = 'http://localhost:5226/api/v1'
+const toast = useToast()
+const { isLoading, executeWithLoading, isActionLoading } = useLoadingState()
 
 // Tab state
 const activeTab = ref<'categories' | 'products' | 'inventory' | 'reports'>('categories')
@@ -756,7 +833,6 @@ const activeTab = ref<'categories' | 'products' | 'inventory' | 'reports'>('cate
 // Data
 const categories = ref<Category[]>([])
 const products = ref<Product[]>([])
-const loading = ref(true)
 const error = ref('')
 
 // Category filter for products
@@ -768,6 +844,7 @@ const editingCategory = ref<Category | null>(null)
 const categoryForm = ref({
   name: '',
   description: '',
+  imageUrl: undefined as string | undefined,
   isActive: true
 })
 const categoryFormErrors = ref({ name: '' })
@@ -787,7 +864,8 @@ const productForm = ref({
   sku: null as string | null,
   stockQuantity: 0,
   lowStockThreshold: 5,
-  costPrice: null as number | null
+  costPrice: null as number | null,
+  specifications: [] as Array<{ key: string; value: string }>
 })
 const productFormErrors = ref({
   name: '',
@@ -802,9 +880,10 @@ const categoryToDelete = ref<Category | null>(null)
 const showDeleteProductModal = ref(false)
 const productToDelete = ref<Product | null>(null)
 
-// Loading states
-const saving = ref(false)
-const deleting = ref(false)
+// Media Picker state
+const showCategoryMediaPicker = ref(false)
+const showProductMediaPicker = ref(false)
+const productImages = ref<any[]>([])
 
 // Computed
 const activeCategories = computed(() => categories.value.filter(c => c.isActive))
@@ -828,10 +907,7 @@ const getCategoryName = (categoryId: number) => {
 
 const getImageUrl = (imageUrl: string | null) => {
   if (!imageUrl) return '/placeholder.png'
-  if (imageUrl.startsWith('/uploads')) {
-    return `http://localhost:5226${imageUrl}`
-  }
-  return imageUrl
+  return getMediaUrl(imageUrl)
 }
 
 const formatDate = (dateString: string) => {
@@ -844,30 +920,35 @@ const formatDate = (dateString: string) => {
 
 // Data loading
 const loadData = async () => {
-  loading.value = true
-  error.value = ''
-  
-  try {
-    const [categoriesRes, productsRes] = await Promise.all([
-      fetch(`${API_URL}/categories?includeInactive=true`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      }),
-      fetch(`${API_URL}/products?includeInactive=true`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      })
-    ])
+  await executeWithLoading(async () => {
+    error.value = ''
+    
+    try {
+      const [categoriesRes, productsRes] = await Promise.all([
+        fetch(`${API_URL}/categories?includeInactive=true`, {
+          headers: { 'Authorization': `Bearer ${authStore.token}` }
+        }),
+        fetch(`${API_URL}/products?includeInactive=true`, {
+          headers: { 'Authorization': `Bearer ${authStore.token}` }
+        })
+      ])
 
-    if (!categoriesRes.ok) throw new Error('Failed to load categories')
-    if (!productsRes.ok) throw new Error('Failed to load products')
+      if (!categoriesRes.ok) throw new Error('Failed to load categories')
+      if (!productsRes.ok) throw new Error('Failed to load products')
 
-    categories.value = await categoriesRes.json()
-    products.value = await productsRes.json()
-    syncInventoryEdits()
-  } catch (err: any) {
-    error.value = err.message || 'Failed to load data'
-  } finally {
-    loading.value = false
-  }
+      categories.value = await categoriesRes.json()
+      products.value = await productsRes.json()
+      
+      logDebug('Loaded products from API', { 
+        count: products.value.length,
+        withSpecifications: products.value.filter((p: Product) => p.specifications).length
+      });
+      
+      syncInventoryEdits()
+    } catch (err: any) {
+      error.value = err.message || 'Failed to load data'
+    }
+  })
 }
 
 // Category functions
@@ -876,6 +957,7 @@ const openCategoryModal = () => {
   categoryForm.value = {
     name: '',
     description: '',
+    imageUrl: undefined,
     isActive: true
   }
   categoryFormErrors.value = { name: '' }
@@ -888,6 +970,7 @@ const editCategory = (category: Category) => {
   categoryForm.value = {
     name: category.name,
     description: category.description,
+    imageUrl: category.imageUrl,
     isActive: category.isActive
   }
   categoryFormErrors.value = { name: '' }
@@ -914,59 +997,38 @@ const validateCategoryForm = () => {
 const saveCategory = async () => {
   if (!validateCategoryForm()) return
   
-  saving.value = true
-  categoryFormError.value = ''
-  
-  try {
-    const url = editingCategory.value 
-      ? `${API_URL}/categories/${editingCategory.value.id}`
-      : `${API_URL}/categories`
+  await executeWithLoading(async () => {
+    categoryFormError.value = ''
     
-    const method = editingCategory.value ? 'PUT' : 'POST'
-    
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authStore.token}`
-      },
-      body: JSON.stringify(categoryForm.value)
-    })
+    try {
+      if (editingCategory.value) {
+        await apiPut(`/categories/${editingCategory.value.id}`, categoryForm.value)
+      } else {
+        await apiPost('/categories', categoryForm.value)
+      }
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || 'Failed to save category')
+      await loadData()
+      closeCategoryModal()
+    } catch (err: any) {
+      categoryFormError.value = err.message || 'Failed to save category'
     }
-
-    await loadData()
-    closeCategoryModal()
-  } catch (err: any) {
-    categoryFormError.value = err.message || 'Failed to save category'
-  } finally {
-    saving.value = false
-  }
+  }, 'saveCategory')
 }
 
 const toggleCategoryStatus = async (category: Category) => {
-  try {
-    const response = await fetch(`${API_URL}/categories/${category.id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authStore.token}`
-      },
-      body: JSON.stringify({
+  await executeWithLoading(async () => {
+    try {
+      await apiPut(`/categories/${category.id}`, {
         ...category,
         isActive: !category.isActive
       })
-    })
 
-    if (!response.ok) throw new Error('Failed to update category status')
-
-    await loadData()
-  } catch (err: any) {
-    alert(err.message || 'Failed to update category')
-  }
+      await loadData()
+      toast.success('Category status updated')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update category')
+    }
+  }, `toggleCategory-${category.id}`)
 }
 
 const confirmDeleteCategory = (category: Category) => {
@@ -977,29 +1039,18 @@ const confirmDeleteCategory = (category: Category) => {
 const deleteCategory = async () => {
   if (!categoryToDelete.value) return
   
-  deleting.value = true
-  
-  try {
-    const response = await fetch(`${API_URL}/categories/${categoryToDelete.value.id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${authStore.token}`
-      }
-    })
+  await executeWithLoading(async () => {
+    try {
+      await apiDelete(`/categories/${categoryToDelete.value.id}`)
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || 'Failed to delete category')
+      await loadData()
+      showDeleteCategoryModal.value = false
+      categoryToDelete.value = null
+      toast.deleteSuccess('Category')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete category')
     }
-
-    await loadData()
-    showDeleteCategoryModal.value = false
-    categoryToDelete.value = null
-  } catch (err: any) {
-    alert(err.message || 'Failed to delete category')
-  } finally {
-    deleting.value = false
-  }
+  }, 'deleteCategory')
 }
 
 // Product functions
@@ -1016,7 +1067,8 @@ const openProductModal = () => {
     sku: null,
     stockQuantity: 0,
     lowStockThreshold: 5,
-    costPrice: null
+    costPrice: null,
+    specifications: []
   }
   productFormErrors.value = { name: '', categoryId: '', price: '' }
   productFormError.value = ''
@@ -1025,6 +1077,26 @@ const openProductModal = () => {
 
 const editProduct = (product: Product) => {
   editingProduct.value = product
+  
+  logDebug('Editing product', {
+    productId: product.id,
+    hasSpecifications: !!product.specifications,
+    specificationsType: typeof product.specifications
+  });
+  
+  // Parse specifications from JSON string
+  let specs: Array<{ key: string; value: string }> = []
+  if (product.specifications) {
+    try {
+      specs = JSON.parse(product.specifications)
+      if (!Array.isArray(specs)) specs = []
+      logDebug('Parsed product specifications', { count: specs.length });
+    } catch (e) {
+      logError('Failed to parse product specifications', e);
+      specs = []
+    }
+  }
+  
   productForm.value = {
     name: product.name,
     description: product.description,
@@ -1036,11 +1108,13 @@ const editProduct = (product: Product) => {
     sku: product.sku ?? null,
     stockQuantity: product.stockQuantity ?? 0,
     lowStockThreshold: product.lowStockThreshold ?? 5,
-    costPrice: product.costPrice ?? null
+    costPrice: product.costPrice ?? null,
+    specifications: specs
   }
   productFormErrors.value = { name: '', categoryId: '', price: '' }
   productFormError.value = ''
   showProductModal.value = true
+  loadProductImages() // Load product images when editing
 }
 
 const closeProductModal = () => {
@@ -1073,45 +1147,43 @@ const validateProductForm = () => {
 const saveProduct = async () => {
   if (!validateProductForm()) return
   
-  saving.value = true
-  productFormError.value = ''
-  
-  try {
-    const url = editingProduct.value 
-      ? `${API_URL}/products/${editingProduct.value.id}`
-      : `${API_URL}/products`
+  await executeWithLoading(async () => {
+    productFormError.value = ''
     
-    const method = editingProduct.value ? 'PUT' : 'POST'
-    
-    logDebug('Saving product', {
-      url,
-      method,
-      productId: editingProduct.value?.id,
-      name: productForm.value.name
-    });
-    
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authStore.token}`
-      },
-      body: JSON.stringify(productForm.value)
-    })
+    try {
+      logDebug('Saving product', {
+        method: editingProduct.value ? 'PUT' : 'POST',
+        productId: editingProduct.value?.id,
+        name: productForm.value.name
+      });
+      
+      // Prepare product data with specifications as JSON string
+      const productData = {
+        ...productForm.value,
+        specifications: productForm.value.specifications.length > 0 
+          ? JSON.stringify(productForm.value.specifications) 
+          : null
+      }
+      
+      logDebug('Saving product data', {
+        hasSpecifications: productForm.value.specifications.length > 0,
+        specificationsCount: productForm.value.specifications.length,
+        productName: productData.name
+      });
+      
+      if (editingProduct.value) {
+        await apiPut(`/products/${editingProduct.value.id}`, productData)
+      } else {
+        await apiPost('/products', productData)
+      }
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || 'Failed to save product')
+      await loadData()
+      closeProductModal()
+    } catch (err: any) {
+      logError('Failed to save product', err);
+      productFormError.value = err.message || 'Failed to save product'
     }
-
-    await loadData()
-    closeProductModal()
-  } catch (err: any) {
-    logError('Failed to save product', err);
-    productFormError.value = err.message || 'Failed to save product'
-  } finally {
-    saving.value = false
-  }
+  }, 'saveProduct')
 }
 
 const confirmDeleteProduct = (product: Product) => {
@@ -1122,29 +1194,141 @@ const confirmDeleteProduct = (product: Product) => {
 const deleteProduct = async () => {
   if (!productToDelete.value) return
   
-  deleting.value = true
-  
-  try {
-    const response = await fetch(`${API_URL}/products/${productToDelete.value.id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${authStore.token}`
-      }
-    })
+  await executeWithLoading(async () => {
+    try {
+      await apiDelete(`/products/${productToDelete.value.id}`)
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || 'Failed to delete product')
+      await loadData()
+      showDeleteProductModal.value = false
+      productToDelete.value = null
+      toast.deleteSuccess('Product')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete product')
     }
+  }, 'deleteProduct')
+}
 
-    await loadData()
-    showDeleteProductModal.value = false
-    productToDelete.value = null
-  } catch (err: any) {
-    alert(err.message || 'Failed to delete product')
-  } finally {
-    deleting.value = false
-  }
+// Specification management functions
+const addSpecification = () => {
+  productForm.value.specifications.push({ key: '', value: '' })
+}
+
+const removeSpecification = (index: number) => {
+  productForm.value.specifications.splice(index, 1)
+}
+
+// Media Picker functions
+const openCategoryMediaPicker = () => {
+  showCategoryMediaPicker.value = true
+}
+
+const openProductMediaPicker = () => {
+  showProductMediaPicker.value = true
+}
+
+const handleCategoryMediaSelection = async (mediaFile: any) => {
+  if (!editingCategory.value) return
+  
+  await executeWithLoading(async () => {
+    try {
+      // Update both editingCategory and categoryForm
+      editingCategory.value.imageUrl = mediaFile.filePath
+      categoryForm.value.imageUrl = mediaFile.filePath
+      showCategoryMediaPicker.value = false
+      toast.success('Image selected')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to select image')
+    }
+  }, 'categoryMedia')
+}
+
+const removeCategoryImage = () => {
+  if (!editingCategory.value) return
+  if (!confirm('Remove this image? Click Save to apply changes.')) return
+  
+  // Update both editingCategory and categoryForm
+  editingCategory.value.imageUrl = undefined
+  categoryForm.value.imageUrl = undefined
+}
+
+const loadProductImages = async () => {
+  if (!editingProduct.value) return
+  
+  await executeWithLoading(async () => {
+    try {
+      const data = await apiGet(`/admin/products/${editingProduct.value.id}/images`)
+      // API returns array directly, map to flat structure
+      productImages.value = data.map((img: any) => ({
+        id: img.id,
+        mediaFileId: img.mediaFileId,
+        isMain: img.isMain,
+        sortOrder: img.sortOrder,
+        fileName: img.mediaFile.fileName,
+        filePath: img.mediaFile.filePath,
+        thumbnailPath: img.mediaFile.thumbnailPath,
+        altText: img.mediaFile.altText
+      }))
+    } catch (err: any) {
+      logError('Failed to load product images', err);
+    }
+  }, 'loadProductImages')
+}
+
+const handleProductMediaSelection = async (mediaFile: any) => {
+  if (!editingProduct.value) return
+  
+  await executeWithLoading(async () => {
+    try {
+      await apiPost(`/admin/products/${editingProduct.value.id}/images`, {
+        mediaFileId: mediaFile.id,
+        isMain: productImages.value.length === 0
+      })
+
+      await loadProductImages()
+      showProductMediaPicker.value = false
+      toast.success('Image linked to product')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to link image')
+    }
+  }, 'productMedia')
+}
+
+const removeProductImage = async (imageId: number) => {
+  if (!confirm('Remove this image?')) return
+  if (!editingProduct.value) return
+  
+  await executeWithLoading(async () => {
+    try {
+      await apiDelete(`/admin/products/${editingProduct.value.id}/images/${imageId}`)
+
+      await loadProductImages()
+      toast.deleteSuccess('Image')
+    } catch (err: any) {
+      toast.deleteError(err.message || 'Failed to remove image')
+    }
+  }, `removeImage-${imageId}`)
+}
+
+const setProductImageAsMain = async (imageId: number) => {
+  if (!editingProduct.value) return
+  
+  await executeWithLoading(async () => {
+    try {
+      // Find the image to get its current sort order
+      const image = productImages.value.find(img => img.id === imageId)
+      if (!image) return
+
+      await apiPut(`/admin/products/${editingProduct.value.id}/images/${imageId}`, {
+        isMain: true,
+        sortOrder: image.sortOrder || 0
+      })
+
+      await loadProductImages()
+      toast.success('Main image updated')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to set main image')
+    }
+  }, `setMainImage-${imageId}`)
 }
 
 // ─── Inventory Tab ───────────────────────────────────────────────────────────
@@ -1153,7 +1337,6 @@ const inventoryEdits = ref<Record<number, InventoryEdit>>({})
 const inventorySearch = ref('')
 const inventoryCategoryFilter = ref<number | ''>()
 const inventoryStockFilter = ref<'' | 'in' | 'low' | 'out'>('')
-const savingStock = ref<Record<number, boolean>>({})
 
 const syncInventoryEdits = () => {
   const map: Record<number, InventoryEdit> = {}
@@ -1231,26 +1414,30 @@ const getMarginClass = (price: number, cost: number | null) => {
 const saveInventoryRow = async (productId: number) => {
   const e = inventoryEdits.value[productId]
   if (!e) return
-  savingStock.value[productId] = true
-  try {
-    const response = await fetch(`${API_URL}/products/${productId}/stock`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authStore.token}` },
-      body: JSON.stringify({ stockQuantity: e.stockQuantity, lowStockThreshold: e.lowStockThreshold, sku: e.sku, costPrice: e.costPrice })
-    })
-    if (!response.ok) throw new Error('Failed to update stock')
-    const product = products.value.find(p => p.id === productId)
-    if (product) {
-      product.stockQuantity = e.stockQuantity
-      product.lowStockThreshold = e.lowStockThreshold
-      product.sku = e.sku
-      product.costPrice = e.costPrice
+  
+  await executeWithLoading(async () => {
+    try {
+      // Use apiClient - note: PATCH method will need custom handling
+      const response = await apiClient(`/products/${productId}/stock`, {
+        method: 'PATCH',
+        body: JSON.stringify({ 
+          stockQuantity: e.stockQuantity, 
+          lowStockThreshold: e.lowStockThreshold, 
+          sku: e.sku, 
+          costPrice: e.costPrice 
+        })
+      })
+      const product = products.value.find(p => p.id === productId)
+      if (product) {
+        product.stockQuantity = e.stockQuantity
+        product.lowStockThreshold = e.lowStockThreshold
+        product.sku = e.sku
+        product.costPrice = e.costPrice
+      }
+    } catch (err) {
+      logError('Failed to save inventory', err as Error)
     }
-  } catch (err) {
-    logError('Failed to save inventory', err as Error)
-  } finally {
-    delete savingStock.value[productId]
-  }
+  }, `inventory-${productId}`)
 }
 
 // ─── Reports Tab ─────────────────────────────────────────────────────────────
@@ -2085,5 +2272,105 @@ onMounted(() => {
   .catalog-page { padding: 0; }
   .report-preview { border: none; box-shadow: none; padding: 0; }
   #report-print-area { display: block !important; }
+}
+
+/* ---- Image Preview Styles ---- */
+.current-image {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.preview-image {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid #e5e7eb;
+}
+
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.image-card {
+  position: relative;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+.image-card img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+}
+
+.image-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.4rem;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  gap: 0.4rem;
+}
+
+.image-actions .btn-xs {
+  padding: 0.25rem 0.4rem;
+  font-size: 0.7rem;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.main-badge {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  background: #059669;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Specifications styling */
+.specs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.spec-item {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.spec-key,
+.spec-value {
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.spec-remove {
+  flex-shrink: 0;
+  padding: 0.375rem 0.5rem;
+  min-width: auto;
 }
 </style>

@@ -1,9 +1,10 @@
 <template>
-  <div class="product-card">
+  <div class="product-card" @click="onViewDetails">
     <div class="product-image">
       <img 
-        :src="product.imageUrl" 
+        :src="mainImageUrl" 
         :alt="product.name"
+        :data-image-effect="imageEffect"
         @error="handleImageError"
         loading="lazy"
       />
@@ -15,7 +16,7 @@
       <p class="product-description">{{ product.description }}</p>
       <div class="product-footer">
         <span class="product-price">${{ formatPrice(product.price) }}</span>
-        <button class="product-button" @click="onViewDetails">
+        <button class="product-button" @click.stop="onViewDetails">
           View Details
         </button>
       </div>
@@ -24,7 +25,9 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { Product } from '@/types';
+import { useSettings } from '@/composables/useSettings';
 
 // Props
 interface Props {
@@ -33,10 +36,33 @@ interface Props {
 
 const props = defineProps<Props>();
 
+// Settings
+const { getSetting } = useSettings();
+
 // Emits
 const emit = defineEmits<{
   viewDetails: [product: Product];
 }>();
+
+// Constants
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5226';
+
+// Computed
+const mainImageUrl = computed(() => {
+  // Use the main image from productImages array, or fall back to imageUrl
+  if (props.product.productImages && props.product.productImages.length > 0) {
+    const mainImage = props.product.productImages.find(img => img.isMain);
+    const url = mainImage?.url || props.product.productImages[0]?.url || props.product.imageUrl;
+    // Prefix relative URLs with API base URL
+    return url && !url.startsWith('http') ? `${API_BASE_URL}${url}` : url;
+  }
+  const url = props.product.imageUrl;
+  return url && !url.startsWith('http') ? `${API_BASE_URL}${url}` : url;
+});
+
+const imageEffect = computed(() => {
+  return getSetting('theme_image_hover', 'zoom');
+});
 
 // Methods
 const formatPrice = (price: number): string => {
@@ -67,6 +93,7 @@ const onViewDetails = () => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  cursor: pointer;
 }
 
 .product-card:hover {
@@ -84,23 +111,23 @@ const onViewDetails = () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
+  transition: transform var(--transition-duration, 0.3s) var(--transition-timing, ease);
 }
 
 .product-card:hover .product-image img {
-  transform: scale(1.05);
+  transform: scale(var(--hover-scale, 1.05));
 }
 
 .product-category {
   position: absolute;
   top: 12px;
   right: 12px;
-  background-color: #ff6b35;
+  background-color: var(--color-primary, #ff6b35);
   color: white;
   padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  border-radius: var(--button-radius, 20px);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: var(--button-font-weight, 600);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -140,25 +167,26 @@ const onViewDetails = () => {
 
 .product-price {
   font-size: 1.5rem;
-  font-weight: bold;
-  color: #ff6b35;
+  font-weight: var(--font-weight-heading, bold);
+  color: var(--color-primary, #ff6b35);
 }
 
 .product-button {
-  background-color: #ff6b35;
+  background-color: var(--color-primary, #ff6b35);
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
+  padding: var(--button-padding-y, 0.75rem) var(--button-padding-x, 1.5rem);
+  border-radius: var(--button-radius, 8px);
+  font-weight: var(--button-font-weight, 600);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--transition-duration, 0.3s) var(--transition-timing, ease);
   font-size: 0.9rem;
 }
 
 .product-button:hover {
-  background-color: #e55a2b;
-  transform: translateY(-1px);
+  background-color: var(--color-primary, #ff6b35);
+  filter: brightness(0.9);
+  transform: translateY(calc(var(--hover-lift-amount, 4px) * -0.25));
 }
 
 .product-button:active {

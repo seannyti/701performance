@@ -80,15 +80,18 @@ import AdminLayout from '@/components/AdminLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { Product } from '@/types'
 import { logError } from '@/services/logger'
+import { API_URL } from '@/utils/api-config'
+import { useToast } from '@/composables/useToast'
 
 const authStore = useAuthStore()
+const toast = useToast()
 const products = ref<Product[]>([])
 const showCreateModal = ref(false)
 const editingProduct = ref<Product | null>(null)
 
 const loadProducts = async () => {
   try {
-    const response = await fetch('http://localhost:5226/api/v1/products')
+    const response = await fetch(`${API_URL}/products`)
     if (response.ok) {
       const data = await response.json()
       products.value = data.data || []
@@ -107,7 +110,7 @@ const deleteProduct = async (productId: number) => {
   if (!confirm('Are you sure you want to delete this product?')) return
   
   try {
-    const response = await fetch(`http://localhost:5226/api/v1/admin/products/${productId}`, {
+    const response = await fetch(`${API_URL}/admin/products/${productId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${authStore.token}`
@@ -116,12 +119,13 @@ const deleteProduct = async (productId: number) => {
     
     if (response.ok) {
       await loadProducts() // Refresh the list
+      toast.deleteSuccess('Product')
     } else {
-      alert('Failed to delete product')
+      toast.deleteError('Failed to delete product')
     }
   } catch (error) {
     logError('Failed to delete product', error, { productId });
-    alert('Failed to delete product')
+    toast.deleteError('Failed to delete product')
   }
 }
 
