@@ -4236,8 +4236,12 @@ public class Program
                 LastName = "Farrell", 
                 Email = "seannytheirish@gmail.com",
                 PasswordHash = hashedPassword,
+                Phone = "7018222605",
                 Role = UserRole.SuperAdmin,
-                CreatedAt = DateTime.UtcNow
+                IsEmailVerified = true,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
             context.Users.Add(superAdmin);
