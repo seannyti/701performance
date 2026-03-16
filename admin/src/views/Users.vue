@@ -533,6 +533,11 @@ const loadUsers = async () => {
 }
 
 // ─── Edit user ────────────────────────────────────────────────────────────────
+const toUserRole = (role: UserRole | string): UserRole => {
+  if (typeof role === 'number') return role
+  return (UserRole[role as keyof typeof UserRole] as unknown as UserRole) ?? UserRole.User
+}
+
 const openEditModal = (user: AdminUser) => {
   editTarget.value = user
   editForm.value = {
@@ -542,7 +547,7 @@ const openEditModal = (user: AdminUser) => {
     phone:     user.phone ?? '',
     subscribeNewsletter: user.subscribeNewsletter ?? false,
     isEmailVerified: user.isEmailVerified ?? false,
-    role: user.role
+    role: toUserRole(user.role)
   }
   editFormErrors.value = {}
   editError.value = null
