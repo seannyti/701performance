@@ -97,7 +97,7 @@
               </div>
               <a 
                 v-if="authStore.hasAdminAccess"
-                :href="`${import.meta.env.VITE_ADMIN_URL || 'http://localhost:5174'}?token=${authStore.token}`"
+                :href="`${adminUrl}?token=${authStore.token}`"
                 target="_blank"
                 class="auth-link admin-link"
                 @click="closeMobileMenu"
@@ -132,6 +132,7 @@ const authStore = useAuthStore();
 const themeStore = useThemeStore();
 const { getSetting } = useSettings();
 
+const adminUrl = import.meta.env.VITE_ADMIN_URL || 'http://localhost:5174';
 const registrationEnabled = computed(() => getSetting('allow_user_registration', 'true') !== 'false');
 const darkModeEnabled = computed(() => getSetting('theme_dark_mode_enabled', 'false') === 'true');
 
