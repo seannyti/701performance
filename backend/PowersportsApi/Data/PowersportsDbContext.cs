@@ -39,8 +39,9 @@ public class PowersportsDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(1000);
             entity.Property(e => e.Price).HasColumnType("decimal(18,2)");
             entity.Property(e => e.ImageUrl).HasMaxLength(500);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.Specifications).HasColumnType("longtext");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             
             // Configure relationship with Category
             entity.HasOne(e => e.Category)
@@ -55,8 +56,8 @@ public class PowersportsDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
             entity.Property(e => e.Description).HasMaxLength(500);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             entity.HasIndex(e => e.Name).IsUnique();
         });
 
@@ -65,7 +66,7 @@ public class PowersportsDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.MediaFileId).IsRequired();
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             
             // Configure relationship with Product
             entity.HasOne(e => e.Product)
@@ -90,7 +91,7 @@ public class PowersportsDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.MediaFileId).IsRequired();
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             
             // Configure relationship with Category (one-to-one)
             entity.HasOne(e => e.Category)
@@ -118,8 +119,8 @@ public class PowersportsDbContext : DbContext
             entity.Property(e => e.LastName).IsRequired().HasMaxLength(50);
             entity.Property(e => e.PasswordHash).IsRequired();
             entity.Property(e => e.Phone).HasMaxLength(20);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
         });
 
         // Configure RefreshToken entity
@@ -128,7 +129,7 @@ public class PowersportsDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Token).IsRequired().HasMaxLength(255);
             entity.Property(e => e.ExpiryDate).IsRequired();
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             
             // Configure relationship with User
             entity.HasOne(e => e.User)
@@ -149,8 +150,8 @@ public class PowersportsDbContext : DbContext
             entity.Property(e => e.Value).IsRequired();
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.Category).IsRequired().HasMaxLength(50);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             
             // Unique key constraint
             entity.HasIndex(e => e.Key).IsUnique();
@@ -171,7 +172,7 @@ public class PowersportsDbContext : DbContext
             entity.Property(e => e.Subject).HasMaxLength(200);
             entity.Property(e => e.Message).IsRequired();
             entity.Property(e => e.AdminNotes).HasMaxLength(1000);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             
             // Configure relationship with assigned user
             entity.HasOne(e => e.AssignedToUser)
@@ -203,8 +204,8 @@ public class PowersportsDbContext : DbContext
             entity.Property(e => e.TotalAmount).HasColumnType("decimal(18,2)");
             entity.Property(e => e.TrackingNumber).HasMaxLength(100);
             entity.Property(e => e.ShippingCarrier).HasMaxLength(100);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             
             // Configure relationship with User
             entity.HasOne(e => e.User)
@@ -256,7 +257,7 @@ public class PowersportsDbContext : DbContext
             entity.Property(e => e.Caption).HasMaxLength(1000);
             entity.Property(e => e.Tags).HasMaxLength(500);
             entity.Property(e => e.MediaType).HasConversion<int>();
-            entity.Property(e => e.UploadedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.UploadedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             
             // Configure relationship with User
             entity.HasOne(e => e.UploadedByUser)
@@ -281,7 +282,7 @@ public class PowersportsDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Description).HasMaxLength(500);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             
             // Configure relationship with Category (optional)
             entity.HasOne(e => e.Category)
