@@ -56,6 +56,18 @@
           <h3 class="section-header">📦 Manual Backup</h3>
           <p class="section-description">Create an on-demand backup of your entire database including settings, users, categories, and products.</p>
           
+          <div class="form-group" style="max-width: 420px; margin-bottom: 1rem;">
+            <label class="form-label">Backup Name <span style="color: var(--color-text-muted); font-weight: normal;">(optional)</span></label>
+            <input
+              type="text"
+              v-model="backupName"
+              class="form-input"
+              placeholder="e.g. before-update, pre-launch..."
+              maxlength="50"
+              :disabled="isActionLoading('createBackup')"
+            />
+          </div>
+
           <div class="backup-manual-actions">
             <button 
               @click="createManualBackup" 
@@ -159,7 +171,7 @@
               <div class="backup-item" v-for="backup in manualBackups" :key="backup.fileName">
                 <div class="backup-item-icon">👤</div>
                 <div class="backup-item-info">
-                  <div class="backup-item-name">{{ backup.fileName }}</div>
+                  <div class="backup-item-name">{{ backup.name || backup.fileName }}</div>
                   <div class="backup-item-meta">
                     <span>{{ formatDate(backup.createdAt) }}</span>
                     <span class="meta-separator">•</span>
@@ -301,6 +313,7 @@ const toast = useToast()
 const { isLoading, executeWithLoading, isActionLoading } = useLoadingState()
 
 // State
+const backupName = ref('')
 const backupStatus = ref<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
 const backupList = ref<any[]>([])
 const autoBackupEnabled = ref(false)
@@ -325,7 +338,8 @@ const totalBackupSize = computed(() => {
 
 // Functions
 const createManualBackup = async () => {
-  if (!confirm('⚠️ Create a new manual backup? This will be saved on the server and can be downloaded or restored later.')) {
+  const nameLabel = backupName.value.trim() ? ` "${backupName.value.trim()}"` : ''
+  if (!confirm(`⚠️ Create a new manual backup${nameLabel}? This will be saved on the server and can be downloaded or restored later.`)) {
     return
   }
 
@@ -339,7 +353,7 @@ const createManualBackup = async () => {
           'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ type: 'manual' })
+        body: JSON.stringify({ type: 'manual', name: backupName.value.trim() || undefined })
       })
 
       if (!response.ok) {
@@ -349,6 +363,7 @@ const createManualBackup = async () => {
       const result = await response.json()
       backupStatus.value = { type: 'success', message: `✅ Backup created successfully: ${result.fileName}` }
       toast.success('Manual backup created successfully!')
+      backupName.value = ''
 
       // Refresh the backup list
       await refreshBackupList()

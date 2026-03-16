@@ -72,6 +72,7 @@
               <th>Email</th>
               <th>Role</th>
               <th>Status</th>
+              <th>Online</th>
               <th>Last Login</th>
               <th>Last Login IP</th>
               <th style="text-align:right">Actions</th>
@@ -119,6 +120,14 @@
                 </span>
               </td>
 
+              <!-- Online indicator -->
+              <td>
+                <span class="online-badge" :class="isOnline(user) ? 'online-badge--on' : 'online-badge--off'" :title="isOnline(user) ? 'Online now' : (user.lastSeenAt ? 'Last seen ' + timeAgo(user.lastSeenAt) : 'Never seen')">
+                  <span class="online-dot"></span>
+                  {{ isOnline(user) ? 'Online' : 'Offline' }}
+                </span>
+              </td>
+
               <!-- Last login -->
               <td class="text-muted" style="font-size:0.8rem">
                 {{ user.lastLoginAt ? timeAgo(user.lastLoginAt) : 'Never' }}
@@ -127,7 +136,7 @@
               <!-- IP -->
               <td>
                 <span v-if="user.lastLoginIp" class="ip-badge" :title="user.lastLoginIp">
-                  {{ user.lastLoginIp }}
+                  {{ formatIp(user.lastLoginIp) }}
                 </span>
                 <span v-else class="text-muted" style="font-size:0.8rem">—</span>
               </td>
@@ -272,7 +281,7 @@
               </div>
               <div class="meta-item">
                 <span class="meta-label">Last Login IP</span>
-                <span class="meta-value ip-mono">{{ editTarget.lastLoginIp ?? '—' }}</span>
+                <span class="meta-value ip-mono">{{ formatIp(editTarget.lastLoginIp) }}</span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Status</span>
@@ -487,7 +496,8 @@ const filteredUsers = computed(() => {
     const matchSearch = !q ||
       `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q) ||
-      (u.lastLoginIp ?? '').includes(q)
+      (u.lastLoginIp ?? '').includes(q) ||
+      formatIp(u.lastLoginIp).includes(q)
 
     // Handle both string role names and numeric role values from API
     const matchRole = roleFilter.value === '' || 
@@ -773,8 +783,22 @@ const timeAgo = (dateStr: string): string => {
   return `${d}d ago`
 }
 
+const formatIp = (ip: string | undefined): string => {
+  if (!ip) return '—'
+  // Unwrap IPv4-mapped IPv6 (::ffff:1.2.3.4 → 1.2.3.4)
+  const v4mapped = ip.match(/^::ffff:(.+)$/i)
+  if (v4mapped) return `${v4mapped[1]} (IPv4)`
+  return ip
+}
+
 const formatDate = (dateStr: string) =>
   new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(dateStr))
+
+// Consider a user online if LastSeenAt is within the last 5 minutes
+const isOnline = (user: AdminUser): boolean => {
+  if (!user.lastSeenAt) return false
+  return Date.now() - new Date(user.lastSeenAt).getTime() < 5 * 60_000
+}
 
 onMounted(loadUsers)
 </script>
@@ -854,6 +878,33 @@ onMounted(loadUsers)
 
 .status-badge--active   { background: #d1fae5; color: #059669; }
 .status-badge--inactive { background: #f1f5f9; color: #94a3b8; }
+
+/* Online/offline badge */
+.online-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.online-badge--on  { background: #d1fae5; color: #059669; }
+.online-badge--off { background: #f1f5f9; color: #94a3b8; }
+
+.online-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.online-badge--on  .online-dot { background: #059669; animation: pulse-green 2s infinite; }
+.online-badge--off .online-dot { background: #94a3b8; }
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
 
 /* IP badge */
 .ip-badge {

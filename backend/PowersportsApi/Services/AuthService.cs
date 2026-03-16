@@ -451,12 +451,12 @@ public class AuthService
     private async Task<string> GenerateAndSaveRefreshTokenAsync(int userId)
     {
         var refreshToken = GenerateSecureRefreshToken();
-        var expiryDays = GetRefreshTokenExpiryDays();
+        var expiryHours = GetRefreshTokenExpiryHours();
 
         var refreshTokenEntity = new RefreshToken
         {
             Token = refreshToken,
-            ExpiryDate = DateTime.UtcNow.AddDays(expiryDays),
+            ExpiryDate = DateTime.UtcNow.AddHours(expiryHours),
             UserId = userId,
             CreatedAt = DateTime.UtcNow
         };
@@ -486,8 +486,8 @@ public class AuthService
         return int.Parse(_configuration["JwtSettings:AccessTokenExpiryMinutes"] ?? "60");
     }
 
-    private int GetRefreshTokenExpiryDays()
+    private int GetRefreshTokenExpiryHours()
     {
-        return int.Parse(_configuration["JwtSettings:RefreshTokenExpiryDays"] ?? "7");
+        return int.Parse(_configuration["JwtSettings:RefreshTokenExpiryHours"] ?? "24");
     }
 }

@@ -580,7 +580,7 @@ public class Program
         .Produces(400)
         .Produces(401);
 
-        authRoutes.MapGet("/me", async (HttpContext context, AuthService authService) =>
+        authRoutes.MapGet("/me", async (HttpContext context, AuthService authService, PowersportsDbContext db) =>
         {
             try
             {
@@ -595,6 +595,11 @@ public class Program
                 {
                     return Results.NotFound();
                 }
+
+                // Stamp last-seen — properly awaited so context isn't disposed first
+                await db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastSeenAt, DateTime.UtcNow));
 
                 return Results.Ok(user);
             }
@@ -661,6 +666,19 @@ public class Program
         .WithSummary("Resend email verification link")
         .Produces(200)
         .Produces(400);
+
+        authRoutes.MapPost("/refresh-token", async (RefreshTokenRequest request, AuthService authService) =>
+        {
+            var result = await authService.RefreshTokenAsync(request);
+            if (!result.IsSuccess)
+                return Results.Unauthorized();
+            return Results.Ok(result.Data);
+        })
+        .WithName("RefreshToken")
+        .WithSummary("Refresh an expired access token using a refresh token")
+        .Produces<AuthResponse>(200)
+        .Produces(401)
+        .AllowAnonymous();
 
         var categoryRoutes = v1Routes.MapGroup("/categories").WithTags("Categories");
 
@@ -866,6 +884,7 @@ public class Program
                     RoleName = u.Role.GetRoleName(),
                     u.CreatedAt,
                     u.LastLoginAt,
+                    u.LastSeenAt,
                     u.LastLoginIp,
                     u.IsActive,
                     u.SubscribeNewsletter,
@@ -895,6 +914,7 @@ public class Program
                     RoleName = u.Role.GetRoleName(),
                     u.CreatedAt,
                     u.LastLoginAt,
+                    u.LastSeenAt,
                     u.LastLoginIp,
                     u.IsActive,
                     u.SubscribeNewsletter,
@@ -1649,9 +1669,20 @@ public class Program
             {
                 var body = await request.ReadFromJsonAsync<Dictionary<string, string>>();
                 var backupType = body?.GetValueOrDefault("type", "manual") ?? "manual";
-                
+                var rawName = body?.GetValueOrDefault("name", "") ?? "";
+
+                // Sanitize name for use in filename (alphanumeric, spaces, hyphens only)
+                var safeName = "";
+                if (!string.IsNullOrWhiteSpace(rawName))
+                {
+                    safeName = "_" + System.Text.RegularExpressions.Regex.Replace(rawName.Trim(), @"[^\w\s\-]", "")
+                        .Replace(" ", "_")
+                        .Trim('_');
+                    if (safeName.Length > 52) safeName = safeName[..52];
+                }
+
                 var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                var backupFileName = $"backup_{backupType}_{timestamp}.json";
+                var backupFileName = $"backup_{backupType}{safeName}_{timestamp}.json";
                 var backupDir = GetBackupDirectory();
                 var backupPath = Path.Combine(backupDir, backupFileName);
                 
@@ -1659,6 +1690,7 @@ public class Program
                 var dbData = new
                 {
                     Type = backupType,
+                    Name = string.IsNullOrWhiteSpace(rawName) ? (string?)null : rawName.Trim(),
                     SiteSettings = await context.SiteSettings.ToListAsync(),
                     Users = await context.Users.Select(u => new { u.Id, u.FirstName, u.LastName, u.Email, u.PasswordHash, u.Role, u.CreatedAt }).ToListAsync(),
                     Categories = await context.Categories.ToListAsync(),
@@ -1721,8 +1753,9 @@ public class Program
                         var fileName = fileInfo.Name;
                         var type = fileName.Contains("_auto_") ? "auto" : "manual";
                         
-                        // Try to read record count from file
+                        // Try to read record count and name from file
                         int recordCount = 0;
+                        string? backupName = null;
                         try
                         {
                             var jsonContent = File.ReadAllText(filePath);
@@ -1731,12 +1764,17 @@ public class Program
                             {
                                 recordCount = countProp.GetInt32();
                             }
+                            if (doc.RootElement.TryGetProperty("Name", out var nameProp))
+                            {
+                                backupName = nameProp.GetString();
+                            }
                         }
                         catch { }
 
                         return new
                         {
                             fileName,
+                            name = backupName,
                             type,
                             size = fileInfo.Length,
                             createdAt = fileInfo.CreationTime,
@@ -4344,7 +4382,7 @@ public class Program
                 new SiteSetting { Key = "terms_content", DisplayName = "Terms of Service Page Content", Value = "", Type = SettingType.Html, Category = "Terms Page", SortOrder = 3 },
                 
                 // Advanced - Security & Access
-                new SiteSetting { Key = "session_timeout", DisplayName = "Session Timeout (minutes)", Value = "10", Type = SettingType.Number, Category = "Advanced", SortOrder = 1 },
+                new SiteSetting { Key = "session_timeout", DisplayName = "Session Timeout (minutes)", Value = "480", Type = SettingType.Number, Category = "Advanced", SortOrder = 1 },
                 new SiteSetting { Key = "max_login_attempts", DisplayName = "Max Login Attempts", Value = "5", Type = SettingType.Number, Category = "Advanced", SortOrder = 2 },
                 new SiteSetting { Key = "allow_user_registration", DisplayName = "Allow User Registration", Value = "true", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 3 },
                 new SiteSetting { Key = "require_email_verification", DisplayName = "Require Email Verification", Value = "false", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 4 },

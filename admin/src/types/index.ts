@@ -77,6 +77,7 @@ export interface AdminUser {
   roleName: string;
   createdAt: string;
   lastLoginAt?: string;
+  lastSeenAt?: string;
   lastLoginIp?: string;
   isActive: boolean;
   subscribeNewsletter?: boolean;

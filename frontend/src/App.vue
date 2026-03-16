@@ -16,6 +16,28 @@
     
     <!-- Footer component - hidden during maintenance and on special pages -->
     <Footer v-if="!hideHeaderFooter" />
+
+    <!-- Toast notifications -->
+    <Teleport to="body">
+      <div class="toast-container">
+        <TransitionGroup name="toast">
+          <div
+            v-for="toast in toasts"
+            :key="toast.id"
+            class="toast"
+            :class="`toast--${toast.type}`"
+          >
+            <span class="toast-icon">
+              <span v-if="toast.type === 'success'">✓</span>
+              <span v-else-if="toast.type === 'error'">✕</span>
+              <span v-else-if="toast.type === 'warning'">⚠</span>
+              <span v-else>ℹ</span>
+            </span>
+            {{ toast.message }}
+          </div>
+        </TransitionGroup>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -25,10 +47,12 @@ import { useRoute } from 'vue-router'
 import Header from './components/Header.vue';
 import Footer from './components/Footer.vue';
 import { useTheme } from './composables/useTheme';
+import { useToast } from './composables/useToast';
 
 // Initialize theme
 useTheme()
 
+const { toasts } = useToast()
 const route = useRoute()
 
 // Hide header/footer only on maintenance, login, and signup pages
@@ -469,4 +493,42 @@ img.theme-image {
     font-size: 1.75rem;
   }
 }
+
+/* Toast notifications */
+.toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.125rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+  max-width: 360px;
+}
+
+.toast--info    { background: #3b82f6; }
+.toast--success { background: #22c55e; }
+.toast--warning { background: #f59e0b; }
+.toast--error   { background: #ef4444; }
+
+.toast-icon { font-size: 1rem; flex-shrink: 0; }
+
+.toast-enter-active,
+.toast-leave-active { transition: all 0.3s ease; }
+.toast-enter-from   { opacity: 0; transform: translateX(60px); }
+.toast-leave-to     { opacity: 0; transform: translateX(60px); }
 </style>

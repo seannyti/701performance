@@ -850,6 +850,8 @@ namespace PowersportsApi.Migrations
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<DateTime?>("LastSeenAt");
+
                     b.Property<string>("LastLoginIp")
                         .HasMaxLength(45)
                         .HasColumnType("varchar(45)");

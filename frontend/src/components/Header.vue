@@ -97,7 +97,7 @@
               </div>
               <a 
                 v-if="authStore.hasAdminAccess"
-                :href="`${adminUrl}?token=${authStore.token}`"
+                :href="`${adminUrl}?token=${authStore.token}&refresh=${authStore.refreshToken}`"
                 target="_blank"
                 class="auth-link admin-link"
                 @click="closeMobileMenu"

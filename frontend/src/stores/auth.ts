@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import axios from 'axios';
 import type { User, AuthResponse } from '@/types';
 import { UserRole } from '@/types';
+import { useToast } from '@/composables/useToast';
 
 const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5226'}/api/v1`;
 
@@ -19,8 +20,10 @@ export const useAuthStore = defineStore('auth', () => {
   // State
   const user = ref<User | null>(null);
   const token = ref<string | null>(localStorage.getItem('auth_token'));
+  const refreshToken = ref<string | null>(localStorage.getItem('refresh_token'));
   const isLoading = ref(false);
   const error = ref<string | null>(null);
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Configure axios defaults
   if (token.value) {
@@ -55,16 +58,19 @@ export const useAuthStore = defineStore('auth', () => {
         password
       });
 
-      const { token: authToken, user: userData } = response.data;
+      const { token: authToken, user: userData, refreshToken: rt, expiresAt } = response.data;
       
       token.value = authToken;
       user.value = userData;
+      refreshToken.value = rt;
       
       if (rememberMe || true) {
         localStorage.setItem('auth_token', authToken);
+        if (rt) localStorage.setItem('refresh_token', rt);
       }
       
       axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+      scheduleRefresh(expiresAt);
       
     } catch (err: any) {
       // Surface email-not-verified as a recognizable message
@@ -98,11 +104,13 @@ export const useAuthStore = defineStore('auth', () => {
         return { requiresEmailVerification: true };
       }
 
-      const { token: authToken, user: userData } = response.data;
+      const { token: authToken, user: userData, refreshToken: rt } = response.data;
       
       token.value = authToken;
       user.value = userData;
+      refreshToken.value = rt;
       localStorage.setItem('auth_token', authToken);
+      if (rt) localStorage.setItem('refresh_token', rt);
       
       axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
       return { requiresEmailVerification: false };
@@ -117,10 +125,13 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   const logout = async (): Promise<string | null> => {
+    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
     user.value = null;
     token.value = null;
+    refreshToken.value = null;
     error.value = null;
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
     
     delete axios.defaults.headers.common['Authorization'];
     
@@ -146,6 +157,13 @@ export const useAuthStore = defineStore('auth', () => {
       return;
     }
 
+    // Try to refresh first if we have a refresh token, so we always get a fresh token on page load
+    const storedRefresh = localStorage.getItem('refresh_token');
+    if (storedRefresh) {
+      const refreshed = await silentRefresh(storedRefresh);
+      if (refreshed) return;
+    }
+
     try {
       const response = await axios.get<User>(`${API_URL}/auth/me`, {
         headers: {
@@ -161,8 +179,37 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (err: any) {
       if (err.response?.status === 401) {
         logout();
+        useToast().warning('Your session has expired. Please log in again.');
       }
     }
+  };
+
+  const silentRefresh = async (rt: string): Promise<boolean> => {
+    try {
+      const response = await axios.post<AuthResponse>(`${API_URL}/auth/refresh-token`, { refreshToken: rt });
+      const { token: newToken, refreshToken: newRt, user: userData, expiresAt } = response.data;
+      token.value = newToken;
+      refreshToken.value = newRt;
+      user.value = userData;
+      localStorage.setItem('auth_token', newToken);
+      if (newRt) localStorage.setItem('refresh_token', newRt);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      scheduleRefresh(expiresAt);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const scheduleRefresh = (expiresAt: string | Date) => {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    const expiryMs = new Date(expiresAt).getTime() - Date.now();
+    // Refresh at 80% of the token's lifetime (leaves 20% buffer)
+    const refreshIn = Math.max(expiryMs * 0.8, 30_000);
+    refreshTimer = setTimeout(async () => {
+      const rt = refreshToken.value || localStorage.getItem('refresh_token');
+      if (rt) await silentRefresh(rt);
+    }, refreshIn);
   };
 
   const clearError = () => {
@@ -175,6 +222,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user,
     token,
+    refreshToken,
     isLoading,
     isAuthenticated,
     fullName,

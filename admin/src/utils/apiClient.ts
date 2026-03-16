@@ -42,6 +42,20 @@ export async function apiClient(
 
     // Handle 401 Unauthorized - token expired or invalid
     if (response.status === 401) {
+      // Try to refresh the token first before logging out
+      const refreshed = await authStore.refreshAccessToken()
+      if (refreshed) {
+        // Retry the original request with the new token
+        const retryHeaders = {
+          ...options.headers,
+          ...(authStore.token ? { 'Authorization': `Bearer ${authStore.token}` } : {})
+        }
+        const retryResponse = await fetch(url, { ...options, headers: retryHeaders })
+        if (retryResponse.status !== 401) {
+          return retryResponse
+        }
+      }
+
       logError('Authentication failed - logging out', new Error('401 Unauthorized'), { url })
       
       // Clear auth state

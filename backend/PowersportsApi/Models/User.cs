@@ -33,6 +33,11 @@ public class User
     
     public DateTime? LastLoginAt { get; set; }
 
+    /// <summary>
+    /// Updated on each authenticated API call — used to determine online/offline status
+    /// </summary>
+    public DateTime? LastSeenAt { get; set; }
+
     [MaxLength(45)]
     public string? LastLoginIp { get; set; }
     

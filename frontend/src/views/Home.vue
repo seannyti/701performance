@@ -339,18 +339,17 @@ onMounted(() => {
 
 .hero {
   position: relative;
-  min-height: 70vh;
-  display: flex;
-  align-items: center;
-  color: white;
   overflow: hidden;
   margin: 0 !important;
-  padding: 2rem 0 0 0 !important;
+  padding: 0.5rem 0 0 0 !important;
 }
 
 .hero-background {
   position: relative;
   width: 100%;
+  min-height: 30vh;
+  display: flex;
+  align-items: center;
   background: linear-gradient(
     var(--gradient-direction, 135deg),
     var(--gradient-start, #ff6b35),
@@ -358,6 +357,7 @@ onMounted(() => {
   ),
   url('https://images.unsplash.com/photo-1558618047-6c0c841469ed?w=1200&h=800&fit=crop') center/cover;
   padding: 4rem 0;
+  color: white;
 }
 
 .hero-content {
@@ -395,7 +395,7 @@ onMounted(() => {
 /* Categories Section */
 .categories-section {
   background-color: #f8f9fa;
-  padding-top: 0 !important;
+  padding-top: 2.5rem !important;
 }
 
 .categories-grid {

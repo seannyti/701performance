@@ -18,9 +18,10 @@ export const useAuthStore = defineStore('auth', () => {
   const checkForTokenInUrl = () => {
     const urlParams = new URLSearchParams(window.location.search)
     const urlToken = urlParams.get('token')
+    const urlRefreshToken = urlParams.get('refresh')
     
     if (urlToken) {
-      setToken(urlToken)
+      setToken(urlToken, urlRefreshToken || undefined)
       // Remove token from URL for security
       const newUrl = window.location.origin + window.location.pathname
       window.history.replaceState({}, document.title, newUrl)
@@ -33,13 +34,26 @@ export const useAuthStore = defineStore('auth', () => {
   const initializeAuth = async () => {
     const hasUrlToken = checkForTokenInUrl()
     
-    if (token.value && !hasUrlToken) {
-      try {
-        await fetchUserProfile()
-      } catch (error) {
-        logout()
+    if (token.value) {
+      // If we arrived via URL token, immediately refresh to get a full-lifetime token
+      // This prevents sign-out when the passed token is near its expiry
+      if (hasUrlToken) {
+        const refreshed = await refreshAccessToken()
+        if (!refreshed) {
+          // Refresh failed but we have the URL token — try to validate it directly
+          try {
+            await fetchUserProfile()
+          } catch {
+            logout()
+          }
+        }
+        return
       }
-    } else if (hasUrlToken) {
+      
+      // On normal page load, try silent refresh first, then fall back to validating stored token
+      const refreshed = await refreshAccessToken()
+      if (refreshed) return
+      
       try {
         await fetchUserProfile()
       } catch (error) {
@@ -113,6 +127,25 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('admin_refresh_token')
   }
 
+  const refreshAccessToken = async (): Promise<boolean> => {
+    const rt = refreshToken.value || localStorage.getItem('admin_refresh_token')
+    if (!rt) return false
+    try {
+      const response = await fetch(`${API_URL}/auth/refresh-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: rt })
+      })
+      if (!response.ok) return false
+      const data = await response.json()
+      setToken(data.token, data.refreshToken)
+      user.value = data.user
+      return true
+    } catch {
+      return false
+    }
+  }
+
   return {
     token,
     user,
@@ -123,6 +156,7 @@ export const useAuthStore = defineStore('auth', () => {
     initializeAuth,
     login,
     logout,
+    refreshAccessToken,
     checkForTokenInUrl
   }
 })
