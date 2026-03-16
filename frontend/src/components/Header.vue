@@ -97,7 +97,7 @@
               </div>
               <a 
                 v-if="authStore.hasAdminAccess"
-                :href="`http://localhost:5174?token=${authStore.token}`"
+                :href="`${import.meta.env.VITE_ADMIN_URL || 'http://localhost:5174'}?token=${authStore.token}`"
                 target="_blank"
                 class="auth-link admin-link"
                 @click="closeMobileMenu"
