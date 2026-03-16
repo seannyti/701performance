@@ -1662,6 +1662,12 @@ public class Program
             return backupDir;
         }
 
+        // Helper method to get the protected (factory default) backup directory
+        string GetProtectedBackupDirectory()
+        {
+            return Path.Combine(Directory.GetCurrentDirectory(), "protected-backups");
+        }
+
         // Create Manual Backup
         backupRoutes.MapPost("/create", async (PowersportsDbContext context, ILogger<Program> logger, HttpRequest request) =>
         {
@@ -1746,42 +1752,36 @@ public class Program
             try
             {
                 var backupDir = GetBackupDirectory();
-                var backupFiles = Directory.GetFiles(backupDir, "backup_*.json")
-                    .Select(filePath =>
+                var allEntries = new List<(string fileName, string? name, string type, bool isProtected, long size, DateTime createdAt, int recordCount)>();
+
+                void CollectBackups(string dir, bool isProtected)
+                {
+                    if (!Directory.Exists(dir)) return;
+                    foreach (var fp in Directory.GetFiles(dir, "backup_*.json"))
                     {
-                        var fileInfo = new FileInfo(filePath);
-                        var fileName = fileInfo.Name;
-                        var type = fileName.Contains("_auto_") ? "auto" : "manual";
-                        
-                        // Try to read record count and name from file
-                        int recordCount = 0;
-                        string? backupName = null;
+                        var fi = new FileInfo(fp);
+                        var fn = fi.Name;
+                        var tp = fn.Contains("_auto_") ? "auto" : "manual";
+                        int rc = 0;
+                        string? nm = null;
                         try
                         {
-                            var jsonContent = File.ReadAllText(filePath);
-                            var doc = JsonDocument.Parse(jsonContent);
-                            if (doc.RootElement.TryGetProperty("RecordCount", out var countProp))
-                            {
-                                recordCount = countProp.GetInt32();
-                            }
-                            if (doc.RootElement.TryGetProperty("Name", out var nameProp))
-                            {
-                                backupName = nameProp.GetString();
-                            }
+                            var txt = File.ReadAllText(fp);
+                            var doc = JsonDocument.Parse(txt);
+                            if (doc.RootElement.TryGetProperty("RecordCount", out var cProp)) rc = cProp.GetInt32();
+                            if (doc.RootElement.TryGetProperty("Name", out var nProp)) nm = nProp.GetString();
                         }
                         catch { }
+                        allEntries.Add((fn, nm, tp, isProtected, fi.Length, fi.CreationTime, rc));
+                    }
+                }
 
-                        return new
-                        {
-                            fileName,
-                            name = backupName,
-                            type,
-                            size = fileInfo.Length,
-                            createdAt = fileInfo.CreationTime,
-                            recordCount
-                        };
-                    })
+                CollectBackups(GetProtectedBackupDirectory(), true);
+                CollectBackups(backupDir, false);
+
+                var backupFiles = allEntries
                     .OrderByDescending(b => b.createdAt)
+                    .Select(b => new { b.fileName, name = b.name, b.type, b.isProtected, b.size, b.createdAt, b.recordCount })
                     .ToList();
 
                 // Calculate next auto backup time (1 AM tomorrow)
@@ -1856,8 +1856,10 @@ public class Program
                     return Results.BadRequest(new { message = "Invalid filename" });
                 }
 
+                // Check protected directory first
+                var protectedRestorePath = Path.Combine(GetProtectedBackupDirectory(), fileName);
                 var backupDir = GetBackupDirectory();
-                var backupPath = Path.Combine(backupDir, fileName);
+                var backupPath = File.Exists(protectedRestorePath) ? protectedRestorePath : Path.Combine(backupDir, fileName);
 
                 if (!File.Exists(backupPath))
                 {
@@ -1981,6 +1983,13 @@ public class Program
                 if (fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
                 {
                     return Results.BadRequest(new { message = "Invalid filename" });
+                }
+
+                // Block deletion of protected (factory default) backups
+                var protectedPath = Path.Combine(GetProtectedBackupDirectory(), fileName);
+                if (File.Exists(protectedPath))
+                {
+                    return Results.Json(new { message = "This is a protected factory default backup and cannot be deleted." }, statusCode: 403);
                 }
 
                 var backupDir = GetBackupDirectory();

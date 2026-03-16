@@ -168,10 +168,13 @@
             <!-- Manual Backups -->
             <div v-if="manualBackups.length > 0" class="backup-group">
               <h4 class="backup-group-title">Manual Backups ({{ manualBackups.length }})</h4>
-              <div class="backup-item" v-for="backup in manualBackups" :key="backup.fileName">
-                <div class="backup-item-icon">👤</div>
+              <div class="backup-item" :class="{ 'backup-item--protected': backup.isProtected }" v-for="backup in manualBackups" :key="backup.fileName">
+                <div class="backup-item-icon">{{ backup.isProtected ? '🔒' : '👤' }}</div>
                 <div class="backup-item-info">
-                  <div class="backup-item-name">{{ backup.name || backup.fileName }}</div>
+                  <div class="backup-item-name">
+                    {{ backup.name || backup.fileName }}
+                    <span v-if="backup.isProtected" class="badge-protected">Factory Default</span>
+                  </div>
                   <div class="backup-item-meta">
                     <span>{{ formatDate(backup.createdAt) }}</span>
                     <span class="meta-separator">•</span>
@@ -192,7 +195,7 @@
                     Download
                   </button>
                   <button 
-                    @click="restoreBackup(backup.fileName)" 
+                    @click="restoreBackup(backup.fileName, backup.isProtected)" 
                     class="btn btn-sm btn-warning"
                     :disabled="isActionLoading(`restore-${backup.fileName}`)"
                     title="Restore from this backup"
@@ -202,6 +205,7 @@
                     Restore
                   </button>
                   <button 
+                    v-if="!backup.isProtected"
                     @click="deleteBackup(backup.fileName)" 
                     class="btn btn-sm btn-danger"
                     :disabled="isActionLoading(`delete-${backup.fileName}`)"
@@ -211,6 +215,7 @@
                     <span v-else class="icon">🗑️</span>
                     Delete
                   </button>
+                  <span v-else class="protected-lock-label">🔒 Protected</span>
                 </div>
               </div>
             </div>
@@ -242,7 +247,7 @@
                     Download
                   </button>
                   <button 
-                    @click="restoreBackup(backup.fileName)" 
+                    @click="restoreBackup(backup.fileName, false)" 
                     class="btn btn-sm btn-warning"
                     :disabled="isActionLoading(`restore-${backup.fileName}`)"
                     title="Restore from this backup"
@@ -438,12 +443,24 @@ const downloadBackup = async (fileName: string) => {
   }, `download-${fileName}`)
 }
 
-const restoreBackup = async (fileName: string) => {
-  if (!confirm(`⚠️ WARNING: Restoring will REPLACE all current data with data from this backup!\n\nBackup: ${fileName}\n\nThis action cannot be undone. Are you absolutely sure?`)) {
+const restoreBackup = async (fileName: string, isProtected: boolean = false) => {
+  const backupLabel = isProtected ? '🔒 FACTORY DEFAULT backup' : `backup`
+
+  // Step 1 — initial warning
+  if (!confirm(`⚠️ WARNING: Restoring will REPLACE all current data with data from this ${backupLabel}!\n\nFile: ${fileName}\n\nThis action CANNOT be undone. Continue?`)) {
     return
   }
 
-  if (!confirm('⚠️ FINAL CONFIRMATION: This will overwrite ALL your current data. Continue?')) {
+  // Step 2 — stronger warning
+  if (!confirm(`⚠️ SECOND CONFIRMATION:\n\nYou are about to permanently overwrite ALL current site data.\n${isProtected ? 'This will reset the site to factory defaults.\n' : ''}\nAre you absolutely certain you want to do this?`)) {
+    return
+  }
+
+  // Step 3 — type to confirm
+  const confirmWord = isProtected ? 'FACTORY RESET' : 'RESTORE'
+  const typed = prompt(`⚠️ FINAL VERIFICATION — Type "${confirmWord}" (all caps) to confirm:`)
+  if (typed !== confirmWord) {
+    alert('Restore cancelled — confirmation text did not match.')
     return
   }
 
@@ -1032,6 +1049,36 @@ onMounted(async () => {
   gap: 0.5rem;
   flex-shrink: 0;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.backup-item--protected {
+  border: 2px solid #d97706;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.badge-protected {
+  display: inline-block;
+  background: #d97706;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+.protected-lock-label {
+  font-size: 0.75rem;
+  color: #92400e;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  background: #fde68a;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 
 .backup-notes {

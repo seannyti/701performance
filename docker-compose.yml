@@ -13,6 +13,7 @@ services:
       - JwtSettings__SecretKey=${JWT_SECRET}
     volumes:
       - uploads:/app/wwwroot/uploads
+      - backups:/app/backups
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:5226/health || exit 1"]
@@ -47,4 +48,6 @@ services:
 
 volumes:
   uploads:
+    driver: local
+  backups:
     driver: local
