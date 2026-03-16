@@ -150,6 +150,14 @@ export const useAuthStore = defineStore('auth', () => {
     return null;
   };
 
+  // Returns true if the JWT access token expires within the next 5 minutes
+  const isTokenNearExpiry = (t: string): boolean => {
+    try {
+      const payload = JSON.parse(atob(t.split('.')[1]));
+      return Date.now() > (payload.exp * 1000) - 5 * 60_000;
+    } catch { return true; }
+  };
+
   const checkAuth = async () => {
     const storedToken = localStorage.getItem('auth_token');
     
@@ -157,9 +165,11 @@ export const useAuthStore = defineStore('auth', () => {
       return;
     }
 
-    // Try to refresh first if we have a refresh token, so we always get a fresh token on page load
+    // Only consume the refresh token if the access token is actually near expiry.
+    // Refreshing eagerly on every page load causes race conditions when multiple
+    // clients (frontend + admin) share the same refresh token.
     const storedRefresh = localStorage.getItem('refresh_token');
-    if (storedRefresh) {
+    if (storedRefresh && isTokenNearExpiry(storedToken)) {
       const refreshed = await silentRefresh(storedRefresh);
       if (refreshed) return;
     }
@@ -175,11 +185,26 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = response.data;
       
       axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+
+      // Schedule a refresh based on the token's actual expiry
+      try {
+        const payload = JSON.parse(atob(storedToken.split('.')[1]));
+        scheduleRefresh(new Date(payload.exp * 1000).toISOString());
+      } catch { }
       
     } catch (err: any) {
       if (err.response?.status === 401) {
-        logout();
-        useToast().warning('Your session has expired. Please log in again.');
+        // Token expired — try to refresh before giving up
+        if (storedRefresh) {
+          const refreshed = await silentRefresh(storedRefresh);
+          if (!refreshed) {
+            logout();
+            useToast().warning('Your session has expired. Please log in again.');
+          }
+        } else {
+          logout();
+          useToast().warning('Your session has expired. Please log in again.');
+        }
       }
     }
   };

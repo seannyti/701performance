@@ -30,33 +30,74 @@ export const useAuthStore = defineStore('auth', () => {
     return false
   }
 
+  // Returns true if the JWT access token expires within the next 5 minutes
+  const isTokenNearExpiry = (t: string): boolean => {
+    try {
+      const payload = JSON.parse(atob(t.split('.')[1]))
+      return Date.now() > (payload.exp * 1000) - 5 * 60_000
+    } catch { return true }
+  }
+
+  // Schedule a token refresh at 80% of the token's remaining lifetime
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined
+  const scheduleRefresh = (t: string) => {
+    if (refreshTimer) clearTimeout(refreshTimer)
+    try {
+      const payload = JSON.parse(atob(t.split('.')[1]))
+      const expiryMs = payload.exp * 1000
+      const refreshIn = Math.max((expiryMs - Date.now()) * 0.8, 30_000)
+      refreshTimer = setTimeout(async () => {
+        const refreshed = await refreshAccessToken()
+        if (!refreshed) logout()
+      }, refreshIn)
+    } catch { }
+  }
+
+  // Request a NEW, independent refresh token from the backend without consuming any existing one
+  const issueAdminRefreshToken = async (): Promise<string | null> => {
+    try {
+      const response = await fetch(`${API_URL}/auth/issue-refresh-token`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token.value}` }
+      })
+      if (!response.ok) return null
+      const data = await response.json()
+      return data.refreshToken as string
+    } catch { return null }
+  }
+
   // Restore auth state from localStorage
   const initializeAuth = async () => {
     const hasUrlToken = checkForTokenInUrl()
     
     if (token.value) {
-      // If we arrived via URL token, immediately refresh to get a full-lifetime token
-      // This prevents sign-out when the passed token is near its expiry
       if (hasUrlToken) {
-        const refreshed = await refreshAccessToken()
-        if (!refreshed) {
-          // Refresh failed but we have the URL token — try to validate it directly
-          try {
-            await fetchUserProfile()
-          } catch {
-            logout()
+        // Arrived via URL link from frontend.
+        // DO NOT consume the shared refresh token — get a dedicated one for this admin session.
+        try {
+          await fetchUserProfile()
+          const dedicatedToken = await issueAdminRefreshToken()
+          if (dedicatedToken) {
+            refreshToken.value = dedicatedToken
+            localStorage.setItem('admin_refresh_token', dedicatedToken)
           }
+          scheduleRefresh(token.value)
+        } catch {
+          logout()
         }
         return
       }
       
-      // On normal page load, try silent refresh first, then fall back to validating stored token
-      const refreshed = await refreshAccessToken()
-      if (refreshed) return
-      
+      // Normal page load / reload — only refresh if the access token is near expiry
+      if (isTokenNearExpiry(token.value)) {
+        const refreshed = await refreshAccessToken()
+        if (refreshed) return
+      }
+
       try {
         await fetchUserProfile()
-      } catch (error) {
+        scheduleRefresh(token.value)
+      } catch {
         logout()
       }
     }

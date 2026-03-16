@@ -680,6 +680,23 @@ public class Program
         .Produces(401)
         .AllowAnonymous();
 
+        // Issue a new, independent refresh token without consuming any existing one.
+        // Used by the admin on first load so it gets its own token, separate from the frontend's.
+        authRoutes.MapPost("/issue-refresh-token", async (AuthService authService, HttpContext httpContext) =>
+        {
+            var userIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out var userId))
+                return Results.Unauthorized();
+
+            var newRefreshToken = await authService.IssueRefreshTokenAsync(userId);
+            return Results.Ok(new { refreshToken = newRefreshToken });
+        })
+        .WithName("IssueRefreshToken")
+        .WithSummary("Issue a new independent refresh token for a new client session (admin)")
+        .Produces(200)
+        .Produces(401)
+        .RequireAuthorization();
+
         var categoryRoutes = v1Routes.MapGroup("/categories").WithTags("Categories");
 
         categoryRoutes.MapGet("/", async (PowersportsDbContext context, bool? includeInactive) =>

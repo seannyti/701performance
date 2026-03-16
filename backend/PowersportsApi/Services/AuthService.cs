@@ -448,6 +448,9 @@ public class AuthService
         return tokenHandler.WriteToken(token);
     }
 
+    /// <summary>Issues a fresh refresh token without removing any existing ones (for multi-client support).</summary>
+    public Task<string> IssueRefreshTokenAsync(int userId) => GenerateAndSaveRefreshTokenAsync(userId);
+
     private async Task<string> GenerateAndSaveRefreshTokenAsync(int userId)
     {
         var refreshToken = GenerateSecureRefreshToken();
