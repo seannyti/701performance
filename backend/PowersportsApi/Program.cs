@@ -4248,13 +4248,18 @@ public class Program
             await context.SaveChangesAsync();
 
             Console.WriteLine("✅ Super Admin user created successfully!");
-            Console.WriteLine($"   Email: {superAdmin.Email}");
-            Console.WriteLine($"   Name: {superAdmin.FirstName} {superAdmin.LastName}");
-            Console.WriteLine($"   Role: {superAdmin.Role}");
         }
         else
         {
-            Console.WriteLine("ℹ️  Super Admin user already exists, skipping seeding.");
+            existingSuperAdmin.FirstName = "Patrick";
+            existingSuperAdmin.LastName = "Farrell";
+            existingSuperAdmin.Phone = "7018222605";
+            existingSuperAdmin.Role = UserRole.SuperAdmin;
+            existingSuperAdmin.IsEmailVerified = true;
+            existingSuperAdmin.IsActive = true;
+            existingSuperAdmin.UpdatedAt = DateTime.UtcNow;
+            await context.SaveChangesAsync();
+            Console.WriteLine("✅ Super Admin user updated successfully!");
         }
 
         Console.WriteLine("Checking for site settings...");

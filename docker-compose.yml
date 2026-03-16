@@ -15,7 +15,7 @@ services:
       - uploads:/app/wwwroot/uploads
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5226/health"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5226/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
