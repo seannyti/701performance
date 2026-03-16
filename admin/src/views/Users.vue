@@ -439,7 +439,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useLoadingState } from '@/composables/useLoadingState'
@@ -800,7 +800,12 @@ const isOnline = (user: AdminUser): boolean => {
   return Date.now() - new Date(user.lastSeenAt).getTime() < 5 * 60_000
 }
 
-onMounted(loadUsers)
+let refreshInterval: ReturnType<typeof setInterval>
+onMounted(() => {
+  loadUsers()
+  refreshInterval = setInterval(loadUsers, 30_000)
+})
+onUnmounted(() => clearInterval(refreshInterval))
 </script>
 
 <style scoped>

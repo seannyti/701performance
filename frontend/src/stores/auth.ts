@@ -219,6 +219,15 @@ export const useAuthStore = defineStore('auth', () => {
   // Initialize auth on store creation
   checkAuth();
 
+  // Heartbeat: ping /auth/me every 2 minutes to keep LastSeenAt fresh
+  setInterval(() => {
+    if (token.value) {
+      axios.get(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token.value}` }
+      }).catch(() => {});
+    }
+  }, 2 * 60_000);
+
   return {
     user,
     token,
