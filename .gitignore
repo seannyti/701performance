@@ -61,6 +61,7 @@ yarn-error.log*
 *.bak
 *.backup
 BACKUP_*/
+**/backups/
 
 # Local dev notes (contains credentials)
 DEVNOTES.md

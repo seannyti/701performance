@@ -224,6 +224,10 @@ public class FileService
                 return AuthServiceResult<MediaFile>.Failure("No file uploaded");
             }
 
+            var validationResult = ValidateImageFile(file);
+            if (!validationResult.Success)
+                return AuthServiceResult<MediaFile>.Failure(validationResult.Message ?? "Invalid image file");
+
             if (file.Length > _maxFileSize)
             {
                 return AuthServiceResult<MediaFile>.Failure($"File size exceeds maximum limit of {_maxFileSize / 1024 / 1024}MB");

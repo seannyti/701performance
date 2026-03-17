@@ -20,22 +20,6 @@ export const useAuthStore = defineStore('auth', () => {
   const isSuperAdmin = computed(() => user.value?.role === 'SuperAdmin' || user.value?.role === 2) // SuperAdmin only
   const hasAdminAccess = computed(() => isAdmin.value || isSuperAdmin.value)
 
-  // Check for token in URL parameters (for auto-login from main site)
-  const checkForTokenInUrl = () => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const urlToken = urlParams.get('token')
-    const urlRefreshToken = urlParams.get('refresh')
-    
-    if (urlToken) {
-      setToken(urlToken, urlRefreshToken || undefined)
-      // Remove token from URL for security
-      const newUrl = window.location.origin + window.location.pathname
-      window.history.replaceState({}, document.title, newUrl)
-      return true
-    }
-    return false
-  }
-
   // Returns true if the JWT access token expires within the next 5 minutes
   const isTokenNearExpiry = (t: string): boolean => {
     try {
@@ -59,41 +43,9 @@ export const useAuthStore = defineStore('auth', () => {
     } catch { }
   }
 
-  // Request a NEW, independent refresh token from the backend without consuming any existing one
-  const issueAdminRefreshToken = async (): Promise<string | null> => {
-    try {
-      const response = await fetch(`${API_URL}/auth/issue-refresh-token`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token.value}` }
-      })
-      if (!response.ok) return null
-      const data = await response.json()
-      return data.refreshToken as string
-    } catch { return null }
-  }
-
   // Restore auth state from sessionStorage
   const initializeAuth = async () => {
-    const hasUrlToken = checkForTokenInUrl()
-    
     if (token.value) {
-      if (hasUrlToken) {
-        // Arrived via URL link from frontend.
-        // DO NOT consume the shared refresh token — get a dedicated one for this admin session.
-        try {
-          await fetchUserProfile()
-          const dedicatedToken = await issueAdminRefreshToken()
-          if (dedicatedToken) {
-            refreshToken.value = dedicatedToken
-            sessionStorage.setItem('admin_refresh_token', dedicatedToken)
-          }
-          scheduleRefresh(token.value)
-        } catch {
-          logout()
-        }
-        return
-      }
-      
       // Normal page load / reload — only refresh if the access token is near expiry
       if (isTokenNearExpiry(token.value)) {
         const refreshed = await refreshAccessToken()
@@ -203,7 +155,6 @@ export const useAuthStore = defineStore('auth', () => {
     initializeAuth,
     login,
     logout,
-    refreshAccessToken,
-    checkForTokenInUrl
+    refreshAccessToken
   }
 })

@@ -61,6 +61,12 @@ public class SiteSetting
     /// Whether this setting is currently active
     /// </summary>
     public bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// Whether this setting is safe to expose on the public (unauthenticated) settings endpoint.
+    /// Only presentation/content keys should be public — credentials and server config must not be.
+    /// </summary>
+    public bool IsPublic { get; set; } = false;
     
     /// <summary>
     /// When this setting was created

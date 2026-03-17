@@ -204,9 +204,13 @@ public class Program
         var v1Routes = app.MapGroup("/api/v1").WithTags("API v1");
         var productRoutes = v1Routes.MapGroup("/products").WithTags("Products");
 
-        productRoutes.MapGet("/", async (ProductService productService) =>
+        productRoutes.MapGet("/", async (ProductService productService, int page = 1, int pageSize = 100) =>
         {
-            var products = await productService.GetAllProductsAsync();
+            pageSize = Math.Min(pageSize, 200);
+            page = Math.Max(page, 1);
+            var allProducts = await productService.GetAllProductsAsync();
+            var totalCount = allProducts.Count;
+            var products = allProducts.Skip((page - 1) * pageSize).Take(pageSize).ToList();
             var productsDto = products.Select(p => new
             {
                 p.Id,
@@ -236,7 +240,14 @@ public class Program
                     ThumbnailUrl = pi.MediaFile?.ThumbnailPath
                 }).ToList()
             });
-            return Results.Ok(productsDto);
+            return Results.Ok(new
+            {
+                data = productsDto,
+                page,
+                pageSize,
+                totalCount,
+                totalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+            });
         })
         .WithName("GetAllProducts")
         .WithSummary("Get all powersports products")
@@ -389,7 +400,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to create product: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to create product"); return Results.BadRequest(new { message = "Failed to create product." });
             }
         })
         .WithName("CreateProduct")
@@ -440,9 +451,8 @@ public class Program
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error updating product {Id}: {Message}", id, ex.Message);
-                var innerMessage = ex.InnerException?.Message ?? ex.Message;
-                return Results.BadRequest(new { message = $"Failed to update product: {innerMessage}" });
+                logger.LogError(ex, "Error updating product {Id}", id);
+                return Results.BadRequest(new { message = "Failed to update product." });
             }
         })
         .WithName("UpdateProduct")
@@ -469,7 +479,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to delete product: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to delete product"); return Results.BadRequest(new { message = "Failed to delete product." });
             }
         })
         .WithName("DeleteProduct")
@@ -498,7 +508,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to update stock: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to update stock"); return Results.BadRequest(new { message = "Failed to update stock." });
             }
         })
         .WithName("AdjustProductStock")
@@ -542,7 +552,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = ex.Message });
+                app.Logger.LogError(ex, "Unexpected error in request"); return Results.BadRequest(new { message = "An unexpected error occurred." });
             }
         })
         .WithName("Register")
@@ -574,7 +584,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = ex.Message });
+                app.Logger.LogError(ex, "Unexpected error in request"); return Results.BadRequest(new { message = "An unexpected error occurred." });
             }
         })
         .WithName("Login")
@@ -608,7 +618,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = ex.Message });
+                app.Logger.LogError(ex, "Unexpected error in request"); return Results.BadRequest(new { message = "An unexpected error occurred." });
             }
         })
         .WithName("GetCurrentUser")
@@ -771,7 +781,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to create category");
-                return Results.BadRequest(new { message = $"Failed to create category: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to create category"); return Results.BadRequest(new { message = "Failed to create category." });
             }
         })
         .WithName("CreateCategory")
@@ -819,7 +829,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to update category {CategoryId}", id);
-                return Results.BadRequest(new { message = $"Failed to update category: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to update category"); return Results.BadRequest(new { message = "Failed to update category." });
             }
         })
         .WithName("UpdateCategory")
@@ -879,7 +889,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to delete category {CategoryId}", id);
-                return Results.BadRequest(new { message = $"Failed to delete category: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to delete category"); return Results.BadRequest(new { message = "Failed to delete category." });
             }
         })
         .WithName("DeleteCategory")
@@ -985,7 +995,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to update user role: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to update user role"); return Results.BadRequest(new { message = "Failed to update user role." });
             }
         })
         .WithName("UpdateUserRole")
@@ -1031,7 +1041,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to update user status: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to update user status"); return Results.BadRequest(new { message = "Failed to update user status." });
             }
         })
         .WithName("UpdateUserStatus")
@@ -1076,7 +1086,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to create user: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to create user"); return Results.BadRequest(new { message = "Failed to create user." });
             }
         })
         .WithName("CreateAdminUser")
@@ -1108,7 +1118,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to delete user: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to delete user"); return Results.BadRequest(new { message = "Failed to delete user." });
             }
         })
         .WithName("DeleteUser")
@@ -1155,7 +1165,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to update user: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to update user"); return Results.BadRequest(new { message = "Failed to update user." });
             }
         })
         .WithName("UpdateUserInfo")
@@ -1188,7 +1198,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to reset password: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to reset password"); return Results.BadRequest(new { message = "Failed to reset password." });
             }
         })
         .WithName("ResetUserPassword")
@@ -1246,12 +1256,13 @@ public class Program
         .Produces(200)
         .RequireAuthorization("AdminOnly");
 
-        // Public Site Settings endpoint
+        // Public Site Settings endpoint — only returns settings explicitly marked IsPublic.
+        // Credentials (SMTP, etc.) and server-config keys must never be marked IsPublic.
         v1Routes.MapGet("/settings", async (PowersportsDbContext context) =>
         {
             var settings = await context.SiteSettings
-                .Where(s => s.IsActive)
-                .Select(s => new { s.Id, s.Key, s.Value, s.DisplayName })
+                .Where(s => s.IsActive && s.IsPublic)
+                .Select(s => new { s.Key, s.Value })
                 .ToListAsync();
             return Results.Ok(settings);
         })
@@ -1340,7 +1351,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to update setting: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to update setting"); return Results.BadRequest(new { message = "Failed to update setting." });
             }
         })
         .WithName("UpdateSiteSetting")
@@ -1387,7 +1398,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to create setting: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to create setting"); return Results.BadRequest(new { message = "Failed to create setting." });
             }
         })
         .WithName("CreateSiteSetting")
@@ -1421,14 +1432,14 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to send test email: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to send test email"); return Results.BadRequest(new { message = "Failed to send test email." });
             }
         })
         .WithName("TestEmail")
         .WithSummary("Send a test email to verify SMTP configuration")
         .Produces(200)
         .Produces(400)
-        .RequireAuthorization("AdminOrSuperAdmin");
+        .RequireAuthorization("AdminOnly");
 
         settingsRoutes.MapPost("/reset", async (PowersportsDbContext context, HttpContext httpContext) =>
         {
@@ -1654,6 +1665,12 @@ public class Program
                     setting.LastModifiedBy = currentUserId;
                     setting.CreatedAt = DateTime.UtcNow;
                     setting.UpdatedAt = DateTime.UtcNow;
+                    // Content/presentation categories are safe to expose publicly.
+                    // Email, Advanced, Security, and System categories contain credentials
+                    // or server-config and must never be public.
+                    setting.IsPublic = setting.Category is not ("Email" or "Advanced" or "Security" or "System");
+                    // Exception: the frontend needs this flag to redirect to the maintenance page.
+                    if (setting.Key == "enable_maintenance_mode") setting.IsPublic = true;
                 }
 
                 context.SiteSettings.AddRange(defaultSettings);
@@ -1663,7 +1680,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to reset settings: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to reset settings"); return Results.BadRequest(new { message = "Failed to reset settings." });
             }
         })
         .WithName("ResetSiteSettings")
@@ -1722,7 +1739,7 @@ public class Program
                     Type = backupType,
                     Name = string.IsNullOrWhiteSpace(rawName) ? (string?)null : rawName.Trim(),
                     SiteSettings = await context.SiteSettings.ToListAsync(),
-                    Users = await context.Users.Select(u => new { u.Id, u.FirstName, u.LastName, u.Email, u.PasswordHash, u.Role, u.CreatedAt }).ToListAsync(),
+                    Users = await context.Users.Select(u => new { u.Id, u.FirstName, u.LastName, u.Email, u.Role, u.CreatedAt }).ToListAsync(),
                     Categories = await context.Categories.ToListAsync(),
                     CategoryImages = await context.CategoryImages.ToListAsync(),
                     Products = await context.Products.ToListAsync(),
@@ -1761,7 +1778,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to create backup");
-                return Results.BadRequest(new { message = $"Failed to create backup: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to create backup"); return Results.BadRequest(new { message = "Failed to create backup." });
             }
         })
         .WithName("CreateBackup")
@@ -1825,7 +1842,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to list backups");
-                return Results.BadRequest(new { message = $"Failed to list backups: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to list backups"); return Results.BadRequest(new { message = "Failed to list backups." });
             }
         })
         .WithName("ListBackups")
@@ -1858,7 +1875,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, $"Failed to download backup: {fileName}");
-                return Results.BadRequest(new { message = $"Failed to download backup: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to download backup"); return Results.BadRequest(new { message = "Failed to download backup." });
             }
         })
         .WithName("DownloadBackup")
@@ -1989,7 +2006,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to restore backup");
-                return Results.BadRequest(new { message = $"Failed to restore backup: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to restore backup"); return Results.BadRequest(new { message = "Failed to restore backup." });
             }
         })
         .WithName("RestoreBackup")
@@ -2032,7 +2049,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, $"Failed to delete backup: {fileName}");
-                return Results.BadRequest(new { message = $"Failed to delete backup: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to delete backup"); return Results.BadRequest(new { message = "Failed to delete backup." });
             }
         })
         .WithName("DeleteBackup")
@@ -2249,7 +2266,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to update contact submission: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to update contact submission"); return Results.BadRequest(new { message = "Failed to update contact submission." });
             }
         })
         .WithName("UpdateContactSubmission")
@@ -2276,7 +2293,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to delete contact submission: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to delete contact submission"); return Results.BadRequest(new { message = "Failed to delete contact submission." });
             }
         })
         .WithName("DeleteContactSubmission")
@@ -2334,6 +2351,8 @@ public class Program
             int page = 1,
             int pageSize = 50) =>
         {
+            pageSize = Math.Min(pageSize, 100);
+            page = Math.Max(page, 1);
             var query = context.Orders
                 .Include(o => o.Items)
                     .ThenInclude(i => i.Product)
@@ -2586,7 +2605,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error creating order");
-                return Results.BadRequest(new { message = "Failed to create order", error = ex.Message });
+                return Results.BadRequest(new { message = "Failed to create order" });
             }
         })
         .WithName("CreateOrder")
@@ -2834,6 +2853,8 @@ public class Program
             int page = 1,
             int pageSize = 50) =>
         {
+            pageSize = Math.Min(pageSize, 100);
+            page = Math.Max(page, 1);
             var (files, totalCount) = await fileService.GetMediaFilesAsync(search, mediaType, sectionId, page, pageSize);
 
             return Results.Ok(new
@@ -3678,7 +3699,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to create appointment: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to create appointment"); return Results.BadRequest(new { message = "Failed to create appointment." });
             }
         })
         .WithName("CreateAppointment")
@@ -3735,7 +3756,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to update appointment: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to update appointment"); return Results.BadRequest(new { message = "Failed to update appointment." });
             }
         })
         .WithName("UpdateAppointment")
@@ -3765,7 +3786,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to update appointment status: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to update appointment status"); return Results.BadRequest(new { message = "Failed to update appointment status." });
             }
         })
         .WithName("UpdateAppointmentStatus")
@@ -3793,7 +3814,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { message = $"Failed to delete appointment: {ex.Message}" });
+                app.Logger.LogError(ex, "Failed to delete appointment"); return Results.BadRequest(new { message = "Failed to delete appointment." });
             }
         })
         .WithName("DeleteAppointment")
@@ -3917,7 +3938,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error linking media file to product {ProductId}", productId);
-                return Results.Problem($"Failed to link media file: {ex.Message}");
+                app.Logger.LogError(ex, "Failed to link media file"); return Results.Problem("Failed to link media file.");
             }
         })
         .WithName("LinkMediaToProduct")
@@ -3966,7 +3987,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error retrieving product gallery for product {ProductId}", productId);
-                return Results.Problem($"Failed to retrieve gallery: {ex.Message}");
+                app.Logger.LogError(ex, "Failed to retrieve gallery"); return Results.Problem("Failed to retrieve gallery.");
             }
         })
         .WithName("GetProductGallery")
@@ -4019,7 +4040,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error updating product image {Id}", id);
-                return Results.Problem($"Failed to update image: {ex.Message}");
+                app.Logger.LogError(ex, "Failed to update image"); return Results.Problem("Failed to update image.");
             }
         })
         .WithName("UpdateProductImage")
@@ -4073,7 +4094,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error removing product image {Id}", id);
-                return Results.Problem($"Failed to remove image: {ex.Message}");
+                app.Logger.LogError(ex, "Failed to remove image"); return Results.Problem("Failed to remove image.");
             }
         })
         .WithName("UnlinkProductImage")
@@ -4143,7 +4164,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error linking media file to category {CategoryId}", categoryId);
-                return Results.Problem($"Failed to link media file: {ex.Message}");
+                app.Logger.LogError(ex, "Failed to link media file"); return Results.Problem("Failed to link media file.");
             }
         })
         .WithName("LinkMediaToCategory")
@@ -4190,7 +4211,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.Problem($"Failed to retrieve category image: {ex.Message}");
+                app.Logger.LogError(ex, "Failed to retrieve category image"); return Results.Problem("Failed to retrieve category image.");
             }
         })
         .WithName("GetCategoryImage")
@@ -4224,7 +4245,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error removing category image for category {CategoryId}", categoryId);
-                return Results.Problem($"Failed to remove image: {ex.Message}");
+                app.Logger.LogError(ex, "Failed to remove image"); return Results.Problem("Failed to remove image.");
             }
         })
         .WithName("UnlinkCategoryImage")

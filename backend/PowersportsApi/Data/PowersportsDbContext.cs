@@ -314,6 +314,7 @@ public class PowersportsDbContext : DbContext
                 SortOrder = 1,
                 IsRequired = true,
                 IsActive = true,
+                IsPublic = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
@@ -329,6 +330,7 @@ public class PowersportsDbContext : DbContext
                 SortOrder = 2,
                 IsRequired = false,
                 IsActive = true,
+                IsPublic = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
@@ -344,6 +346,7 @@ public class PowersportsDbContext : DbContext
                 SortOrder = 3,
                 IsRequired = true,
                 IsActive = true,
+                IsPublic = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
@@ -359,6 +362,7 @@ public class PowersportsDbContext : DbContext
                 SortOrder = 4,
                 IsRequired = false,
                 IsActive = true,
+                IsPublic = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
@@ -374,6 +378,7 @@ public class PowersportsDbContext : DbContext
                 SortOrder = 5,
                 IsRequired = false,
                 IsActive = true,
+                IsPublic = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
@@ -389,6 +394,7 @@ public class PowersportsDbContext : DbContext
                 SortOrder = 6,
                 IsRequired = false,
                 IsActive = true,
+                IsPublic = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
@@ -404,6 +410,7 @@ public class PowersportsDbContext : DbContext
                 SortOrder = 7,
                 IsRequired = false,
                 IsActive = true,
+                IsPublic = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
@@ -419,6 +426,7 @@ public class PowersportsDbContext : DbContext
                 SortOrder = 1,
                 IsRequired = false,
                 IsActive = true,
+                IsPublic = false,   // auth config — never expose publicly
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             }

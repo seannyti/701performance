@@ -56,9 +56,9 @@
             </div>
 
             <!-- Live preview -->
-            <div v-if="getSetting('music_embed_code').value.trim()" class="form-group" style="margin-top: 1.25rem;">
+            <div v-if="sanitizedEmbedCode" class="form-group" style="margin-top: 1.25rem;">
               <label class="form-label">Preview</label>
-              <div class="music-preview" v-html="getSetting('music_embed_code').value"></div>
+              <div class="music-preview" v-html="sanitizedEmbedCode"></div>
             </div>
 
             <div class="form-actions" style="margin-top: 1.5rem;">
@@ -79,7 +79,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import DOMPurify from 'dompurify'
 import AdminLayout from '@/components/AdminLayout.vue'
 import { logDebug, logError } from '@/services/logger'
 import { useToast } from '@/composables/useToast'
@@ -113,6 +114,30 @@ const getSetting = (key: string) => {
     id: 0, key, value: '', displayName: '', type: 'Text', category: 'Music', sortOrder: 0, isRequired: false
   } as SiteSetting
 }
+
+const ALLOWED_EMBED_ORIGINS = ['open.spotify.com', 'w.soundcloud.com']
+
+const sanitizedEmbedCode = computed(() => {
+  const raw = getSetting('music_embed_code').value.trim()
+  if (!raw) return ''
+  const clean = DOMPurify.sanitize(raw, {
+    ALLOWED_TAGS: ['iframe'],
+    ALLOWED_ATTR: ['src', 'width', 'height', 'frameborder', 'allow', 'allowfullscreen', 'title', 'loading', 'style'],
+    ALLOW_DATA_ATTR: false,
+  })
+  // Strip iframes whose src doesn't match the domain allowlist
+  const div = document.createElement('div')
+  div.innerHTML = clean
+  div.querySelectorAll('iframe').forEach(frame => {
+    try {
+      const origin = new URL(frame.src).hostname
+      if (!ALLOWED_EMBED_ORIGINS.includes(origin)) frame.remove()
+    } catch {
+      frame.remove()
+    }
+  })
+  return div.innerHTML
+})
 
 const handleToggleChange = (key: string, event: Event) => {
   const target = event.target as HTMLInputElement

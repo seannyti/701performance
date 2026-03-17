@@ -91,22 +91,12 @@ public class RateLimitingMiddleware
         await _next(context);
     }
 
-    private string GetClientIpAddress(HttpContext context)
+    private static string GetClientIpAddress(HttpContext context)
     {
-        // Check for forwarded IP (when behind proxy/load balancer)
-        var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(forwardedFor))
-        {
-            return forwardedFor.Split(',')[0].Trim();
-        }
-
-        // Check for real IP header
-        var realIp = context.Request.Headers["X-Real-IP"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(realIp))
-        {
-            return realIp;
-        }
-
+        // Use the TCP-level remote address — not client-supplied headers, which are trivially spoofed.
+        // If a trusted reverse proxy (e.g. Nginx on localhost) is ever added, configure
+        // ForwardedHeadersOptions with KnownProxies in Program.cs and ASP.NET Core will
+        // populate RemoteIpAddress correctly before this middleware runs.
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 

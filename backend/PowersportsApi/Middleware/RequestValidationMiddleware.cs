@@ -108,14 +108,9 @@ public class RequestValidationMiddleware
         return false;
     }
 
-    private string GetClientIpAddress(HttpContext context)
+    private static string GetClientIpAddress(HttpContext context)
     {
-        var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(forwardedFor))
-        {
-            return forwardedFor.Split(',')[0].Trim();
-        }
-
+        // Use the TCP-level remote address — not client-supplied headers, which are trivially spoofed.
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 }
