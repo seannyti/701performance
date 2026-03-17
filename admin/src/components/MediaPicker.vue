@@ -157,7 +157,7 @@ const loadMedia = async () => {
       params.append('sectionId', filterSection.value.toString())
     }
 
-    const token = localStorage.getItem('admin_token')
+    const token = sessionStorage.getItem('admin_token')
     const response = await fetch(
       `${API_URL}/admin/media?${params}`,
       {
@@ -211,7 +211,7 @@ const close = () => {
 
 const loadSections = async () => {
   try {
-    const token = localStorage.getItem('admin_token')
+    const token = sessionStorage.getItem('admin_token')
     const response = await fetch(`${API_URL}/admin/media/sections`, {
       headers: {
         'Authorization': `Bearer ${token}`

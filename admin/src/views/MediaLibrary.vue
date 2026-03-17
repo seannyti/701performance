@@ -456,7 +456,7 @@ const currentSectionName = computed(() => {
 const loadSections = async () => {
   await executeWithLoading(async () => {
     try {
-      const token = localStorage.getItem('admin_token')
+      const token = sessionStorage.getItem('admin_token')
       const response = await fetch(`${API_URL}/admin/media/sections`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -483,7 +483,7 @@ const loadSectionFiles = async (sectionId: number) => {
   loadingSections.value.push(sectionId)
   
   try {
-    const token = localStorage.getItem('admin_token')
+    const token = sessionStorage.getItem('admin_token')
     const response = await fetch(
       `${API_URL}/admin/media?sectionId=${sectionId}&pageSize=100`,
       {
@@ -558,7 +558,7 @@ const uploadFilesToLibrary = async () => {
   if (!currentUploadSectionId.value) return
   
   await executeWithLoading(async () => {
-    const token = localStorage.getItem('admin_token')
+    const token = sessionStorage.getItem('admin_token')
 
     try {
       let failedFiles: string[] = []
@@ -609,7 +609,7 @@ const createSection = async () => {
   if (!newSection.value.name.trim()) return
 
   await executeWithLoading(async () => {
-    const token = localStorage.getItem('admin_token')
+    const token = sessionStorage.getItem('admin_token')
     try {
       const response = await fetch(`${API_URL}/admin/media/sections`, {
         method: 'POST',
@@ -649,7 +649,7 @@ const confirmDeleteSection = async (section: Section) => {
   if (!confirm(confirmMessage)) return
 
   await executeWithLoading(async () => {
-    const token = localStorage.getItem('admin_token')
+    const token = sessionStorage.getItem('admin_token')
     try {
       const response = await fetch(
         `${API_URL}/admin/media/sections/${section.id}`,
@@ -693,7 +693,7 @@ const updateMediaMetadata = async () => {
   if (!selectedMedia.value) return
 
   await executeWithLoading(async () => {
-    const token = localStorage.getItem('admin_token')
+    const token = sessionStorage.getItem('admin_token')
     try {
       const response = await fetch(
         `${API_URL}/admin/media/${selectedMedia.value!.id}`,
@@ -731,7 +731,7 @@ const deleteMediaFile = async (id: number) => {
   }
 
   await executeWithLoading(async () => {
-    const token = localStorage.getItem('admin_token')
+    const token = sessionStorage.getItem('admin_token')
     try {
       const response = await fetch(
         `${API_URL}/admin/media/${id}`,

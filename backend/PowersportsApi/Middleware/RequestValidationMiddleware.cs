@@ -11,7 +11,10 @@ public class RequestValidationMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<RequestValidationMiddleware> _logger;
 
-    // Dangerous patterns that indicate potential attacks
+    // Dangerous patterns that indicate potential attacks.
+    // SQL keyword detection intentionally omitted — EF Core uses parameterized queries so SQL injection
+    // via input is not possible, and keyword matching causes false positives on legitimate product names
+    // (e.g. "Select Accessories", "Drop Handlebar Kit").
     private static readonly Regex[] DangerousPatterns = new[]
     {
         new Regex(@"<script[^>]*>.*?</script>", RegexOptions.IgnoreCase | RegexOptions.Compiled),
@@ -19,7 +22,6 @@ public class RequestValidationMiddleware
         new Regex(@"on\w+\s*=", RegexOptions.IgnoreCase | RegexOptions.Compiled), // Event handlers
         new Regex(@"<iframe", RegexOptions.IgnoreCase | RegexOptions.Compiled),
         new Regex(@"\.\.[\\/]", RegexOptions.Compiled), // Path traversal
-        new Regex(@"(?:union|select|insert|update|delete|drop|create|alter|exec|execute)\s", RegexOptions.IgnoreCase | RegexOptions.Compiled), // SQL injection
     };
 
     public RequestValidationMiddleware(RequestDelegate next, ILogger<RequestValidationMiddleware> logger)

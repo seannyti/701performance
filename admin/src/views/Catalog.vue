@@ -937,7 +937,8 @@ const loadData = async () => {
       if (!productsRes.ok) throw new Error('Failed to load products')
 
       categories.value = await categoriesRes.json()
-      products.value = await productsRes.json()
+      const productsJson = await productsRes.json()
+      products.value = productsJson.data ?? productsJson
       
       logDebug('Loaded products from API', { 
         count: products.value.length,

@@ -62,7 +62,7 @@ export async function apiClient(
       authStore.logout()
       
       // Show notification (the navigation will handle showing the message)
-      localStorage.setItem('auth_logout_reason', 'Your session has expired. Please log in again.')
+      sessionStorage.setItem('auth_logout_reason', 'Your session has expired. Please log in again.')
       
       // Redirect to login using the router instance
       if (routerInstance) {
@@ -107,9 +107,9 @@ export async function apiGet<T = any>(endpoint: string): Promise<T> {
 /**
  * Helper for POST requests
  */
-export async function apiPost<T = any>(
+export async function apiPost<T = unknown, TBody = unknown>(
   endpoint: string,
-  data?: any
+  data?: TBody
 ): Promise<T> {
   const response = await apiClient(endpoint, {
     method: 'POST',
@@ -137,9 +137,9 @@ export async function apiPost<T = any>(
 /**
  * Helper for PUT requests
  */
-export async function apiPut<T = any>(
+export async function apiPut<T = unknown, TBody = unknown>(
   endpoint: string,
-  data?: any
+  data?: TBody
 ): Promise<T> {
   const response = await apiClient(endpoint, {
     method: 'PUT',

@@ -16,7 +16,9 @@
   },
   "dependencies": {
     "@powersports/shared-types": "file:../packages/shared-types",
+    "@types/dompurify": "^3.0.5",
     "axios": "^1.6.0",
+    "dompurify": "^3.3.3",
     "pinia": "^2.1.7",
     "vue": "^3.4.0",
     "vue-router": "^4.2.5"

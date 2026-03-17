@@ -27,6 +27,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import DOMPurify from 'dompurify'
 import { useSettings } from '@/composables/useSettings'
 
 const { getSetting, loading } = useSettings()
@@ -46,7 +47,7 @@ const showPlayer = computed(() => {
 
 const embedCode = computed(() => {
   const raw = getSetting('music_embed_code', '')
-  return raw
+  const adjusted = raw
     // Force compact height (hides playlist, shows only current track + controls)
     .replace(/height=["']\d+["']/gi, 'height="80"')
     .replace(/height:\s*\d+px/gi, 'height: 80px')
@@ -59,6 +60,10 @@ const embedCode = computed(() => {
         return `allow="${perms.join('; ')}"`
       }
     )
+  return DOMPurify.sanitize(adjusted, {
+    ALLOWED_TAGS: ['iframe'],
+    ALLOWED_ATTR: ['src', 'width', 'height', 'frameborder', 'allow', 'allowfullscreen', 'style', 'title', 'loading'],
+  })
 })
 </script>
 

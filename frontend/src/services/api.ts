@@ -65,9 +65,10 @@ export const productService = {
     }
 
     try {
-      const response = await apiClient.get<Product[]>('/api/v1/products');
-      apiCache.set(cacheKey, response.data); // Cache for default 5 min
-      return response.data;
+      const response = await apiClient.get<{ data: Product[] }>('/api/v1/products');
+      const products = response.data.data ?? (response.data as unknown as Product[]);
+      apiCache.set(cacheKey, products); // Cache for default 5 min
+      return products;
     } catch (error) {
       logError('Failed to fetch products', error);
       throw new Error('Failed to fetch products');

@@ -206,7 +206,9 @@ public class FileService
     private int GetCurrentUserId()
     {
         var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return int.TryParse(userIdClaim, out var userId) ? userId : 1;
+        if (!int.TryParse(userIdClaim, out var userId))
+            throw new UnauthorizedAccessException("Authenticated user ID is missing from token.");
+        return userId;
     }
 
     // ===== Media Library Methods =====

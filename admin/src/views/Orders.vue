@@ -715,7 +715,7 @@ const loadStats = async () => {
   try {
     const response = await fetch(`${API_URL}/admin/orders/stats`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
       }
     });
     const data = await response.json();
@@ -741,7 +741,7 @@ const loadOrders = async () => {
 
       const response = await fetch(`${API_URL}/admin/orders?${params}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
         }
       });
       const data = await response.json();
@@ -758,7 +758,7 @@ const viewOrder = async (id: number) => {
   try {
     const response = await fetch(`${API_URL}/admin/orders/${id}`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
       }
     });
     selectedOrder.value = await response.json();
@@ -796,7 +796,7 @@ const saveOrder = async () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
         },
         body: JSON.stringify({
           customerName: editForm.customerName,
@@ -841,7 +841,7 @@ const confirmDeleteOrder = async (id: number) => {
       const response = await fetch(`${API_URL}/admin/orders/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
         }
       });
 
@@ -919,7 +919,7 @@ const searchProducts = async () => {
         `${API_URL}/products?search=${encodeURIComponent(productSearch.value)}&pageSize=10`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+            'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
           }
         }
       );
@@ -1003,7 +1003,7 @@ const createOrder = async () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
         },
         body: JSON.stringify(orderData)
       });

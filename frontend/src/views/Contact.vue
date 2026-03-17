@@ -113,7 +113,7 @@
               <div class="contact-details">
                 <h3>{{ getSetting('contact_phone_title', 'Call Us') }}</h3>
                 <p><a :href="`tel:${getSetting('contact_phone', '(555) 123-4567').replace(/[^0-9]/g, '')}`">{{ getSetting('contact_phone', '(555) 123-4567') }}</a></p>
-                <p class="contact-note" v-html="getSetting('contact_hours', 'Mon-Fri: 9AM-6PM<br>Sat: 9AM-4PM').replace(/\n/g, '<br>')"></p>
+                <p class="contact-note" style="white-space: pre-line">{{ getSetting('contact_hours', 'Mon-Fri: 9AM-6PM\nSat: 9AM-4PM') }}</p>
               </div>
             </div>
 

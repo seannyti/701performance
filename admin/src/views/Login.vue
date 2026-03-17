@@ -75,10 +75,10 @@ const loading = ref(false)
 
 // Check for logout notification
 onMounted(() => {
-  const logoutReason = localStorage.getItem('auth_logout_reason')
+  const logoutReason = sessionStorage.getItem('auth_logout_reason')
   if (logoutReason) {
     toast.warning(logoutReason)
-    localStorage.removeItem('auth_logout_reason')
+    sessionStorage.removeItem('auth_logout_reason')
   }
 })
 

@@ -10,15 +10,24 @@
       </div>
 
       <!-- Page Content -->
-      <div class="page-content" v-html="getSetting('shipping_content', '<p>Loading shipping information...</p>')"></div>
+      <div class="page-content" v-html="sanitizedContent"></div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import DOMPurify from 'dompurify';
 import { useSettings } from '@/composables/useSettings';
 
 const { getSetting } = useSettings();
+
+const sanitizedContent = computed(() =>
+  DOMPurify.sanitize(getSetting('shipping_content', '<p>Loading shipping information...</p>'), {
+    ALLOWED_TAGS: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'br', 'span', 'div'],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+  })
+);
 </script>
 
 <style scoped>

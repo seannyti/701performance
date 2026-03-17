@@ -7,6 +7,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.IO.Compression;
 using System.Security.Claims;
+using MiniValidation;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using PowersportsApi.Data;
 using PowersportsApi.Models;
 using PowersportsApi.Models.Auth;
@@ -112,6 +115,31 @@ public class Program
             });
         });
 
+        // Built-in ASP.NET Core rate limiting — survives restarts and is scoped per named policy.
+        // The custom in-memory RateLimitingMiddleware is replaced by this.
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // Strict limit for auth endpoints (login / register / refresh)
+            options.AddFixedWindowLimiter("auth", opt =>
+            {
+                opt.Window = TimeSpan.FromMinutes(1);
+                opt.PermitLimit = 5;
+                opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                opt.QueueLimit = 0;
+            });
+
+            // General API limit
+            options.AddFixedWindowLimiter("api", opt =>
+            {
+                opt.Window = TimeSpan.FromMinutes(1);
+                opt.PermitLimit = 60;
+                opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                opt.QueueLimit = 0;
+            });
+        });
+
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(c =>
         {
@@ -176,10 +204,12 @@ public class Program
         DisplaySeparator();
         LogInfo($"Environment: {app.Environment.EnvironmentName}");
         
-        if (app.Environment.IsDevelopment())
+        var swaggerEnabled = app.Environment.IsDevelopment()
+            && string.Equals(Environment.GetEnvironmentVariable("SWAGGER_ENABLED"), "true", StringComparison.OrdinalIgnoreCase);
+        if (swaggerEnabled)
         {
             app.UseSwagger();
-            app.UseSwaggerUI(c => 
+            app.UseSwaggerUI(c =>
             {
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "Powersports API v1.0");
             });
@@ -188,7 +218,7 @@ public class Program
         // Security middleware pipeline
         app.UseMiddleware<PowersportsApi.Middleware.SecurityHeadersMiddleware>();
         app.UseMiddleware<PowersportsApi.Middleware.RequestValidationMiddleware>();
-        app.UseMiddleware<PowersportsApi.Middleware.RateLimitingMiddleware>();
+        app.UseRateLimiter();
         
         app.UseCors("AllowFrontend");
         app.UseStaticFiles();
@@ -201,7 +231,17 @@ public class Program
         app.UseAuthentication();
         app.UseAuthorization();
 
-        var v1Routes = app.MapGroup("/api/v1").WithTags("API v1");
+        // Reusable MiniValidation endpoint filter — validates the first bound argument of type T.
+        // Apply with .AddEndpointFilter(Validate<TRequest>) on any route that binds a request body.
+        static async ValueTask<object?> Validate<T>(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next) where T : class
+        {
+            var arg = ctx.Arguments.OfType<T>().FirstOrDefault();
+            if (arg is not null && !MiniValidator.TryValidate(arg, out var errors))
+                return Results.ValidationProblem(errors);
+            return await next(ctx);
+        }
+
+        var v1Routes = app.MapGroup("/api/v1").WithTags("API v1").RequireRateLimiting("api");
         var productRoutes = v1Routes.MapGroup("/products").WithTags("Products");
 
         productRoutes.MapGet("/", async (ProductService productService, int page = 1, int pageSize = 100) =>
@@ -211,35 +251,7 @@ public class Program
             var allProducts = await productService.GetAllProductsAsync();
             var totalCount = allProducts.Count;
             var products = allProducts.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-            var productsDto = products.Select(p => new
-            {
-                p.Id,
-                p.Name,
-                p.Description,
-                p.Price,
-                Category = p.Category?.Name ?? "",
-                p.CategoryId,
-                p.ImageUrl,
-                p.IsFeatured,
-                p.IsActive,
-                p.Sku,
-                p.StockQuantity,
-                p.LowStockThreshold,
-                p.CostPrice,
-                p.Specifications,
-                p.CreatedAt,
-                p.UpdatedAt,
-                ProductImages = p.ProductImages?.OrderBy(pi => pi.SortOrder).Select(pi => new
-                {
-                    pi.Id,
-                    pi.ProductId,
-                    pi.MediaFileId,
-                    pi.IsMain,
-                    pi.SortOrder,
-                    Url = pi.MediaFile?.FilePath ?? "",
-                    ThumbnailUrl = pi.MediaFile?.ThumbnailPath
-                }).ToList()
-            });
+            var productsDto = products.Select(p => p.ToProductDto());
             return Results.Ok(new
             {
                 data = productsDto,
@@ -299,35 +311,7 @@ public class Program
         productRoutes.MapGet("/category/{category}", async (ProductService productService, string category) =>
         {
             var products = await productService.GetProductsByCategoryAsync(category);
-            var productsDto = products.Select(p => new
-            {
-                p.Id,
-                p.Name,
-                p.Description,
-                p.Price,
-                Category = p.Category?.Name ?? "",
-                p.CategoryId,
-                p.ImageUrl,
-                p.IsFeatured,
-                p.IsActive,
-                p.Sku,
-                p.StockQuantity,
-                p.LowStockThreshold,
-                p.CostPrice,
-                p.CreatedAt,
-                p.UpdatedAt,
-                ProductImages = p.ProductImages?.OrderBy(pi => pi.SortOrder).Select(pi => new
-                {
-                    pi.Id,
-                    pi.ProductId,
-                    pi.MediaFileId,
-                    pi.IsMain,
-                    pi.SortOrder,
-                    Url = pi.MediaFile?.FilePath ?? "",
-                    ThumbnailUrl = pi.MediaFile?.ThumbnailPath
-                }).ToList()
-            });
-            return Results.Ok(productsDto);
+            return Results.Ok(products.Select(p => p.ToProductDto()));
         })
         .WithName("GetProductsByCategory")
         .WithSummary("Get products by category (ATV, Dirtbike, UTV, Snowmobile, Gear)")
@@ -336,36 +320,7 @@ public class Program
         productRoutes.MapGet("/featured", async (ProductService productService) =>
         {
             var products = await productService.GetFeaturedProductsAsync();
-            var productsDto = products.Select(p => new
-            {
-                p.Id,
-                p.Name,
-                p.Description,
-                p.Price,
-                p.Specifications,
-                Category = p.Category?.Name ?? "",
-                p.CategoryId,
-                p.ImageUrl,
-                p.IsFeatured,
-                p.IsActive,
-                p.Sku,
-                p.StockQuantity,
-                p.LowStockThreshold,
-                p.CostPrice,
-                p.CreatedAt,
-                p.UpdatedAt,
-                ProductImages = p.ProductImages?.OrderBy(pi => pi.SortOrder).Select(pi => new
-                {
-                    pi.Id,
-                    pi.ProductId,
-                    pi.MediaFileId,
-                    pi.IsMain,
-                    pi.SortOrder,
-                    Url = pi.MediaFile?.FilePath ?? "",
-                    ThumbnailUrl = pi.MediaFile?.ThumbnailPath
-                }).ToList()
-            });
-            return Results.Ok(productsDto);
+            return Results.Ok(products.Select(p => p.ToProductDto()));
         })
         .WithName("GetFeaturedProducts")
         .WithSummary("Get featured products for home page display")
@@ -407,7 +362,8 @@ public class Program
         .WithSummary("Create a new product (Admin+ only)")
         .Produces<Product>(201)
         .Produces(400)
-        .RequireAuthorization("AdminOnly");
+        .RequireAuthorization("AdminOnly")
+        .AddEndpointFilter(Validate<CreateProductRequest>);
 
         productRoutes.MapPut("/{id:int}", async (int id, UpdateProductRequest request, ProductService productService, PowersportsDbContext context, ILogger<Program> logger) =>
         {
@@ -518,7 +474,7 @@ public class Program
         .Produces(400)
         .RequireAuthorization("AdminOnly");
 
-        var authRoutes = v1Routes.MapGroup("/auth").WithTags("Authentication");
+        var authRoutes = v1Routes.MapGroup("/auth").WithTags("Authentication").RequireRateLimiting("auth");
 
         authRoutes.MapPost("/register", async (RegisterRequest request, AuthService authService, PowersportsDbContext context) =>
         {
@@ -558,7 +514,8 @@ public class Program
         .WithName("Register")
         .WithSummary("Register a new user account")
         .Produces<AuthResponse>(200)
-        .Produces(400);
+        .Produces(400)
+        .AddEndpointFilter(Validate<RegisterRequest>);
 
         authRoutes.MapPost("/login", async (LoginRequest request, AuthService authService, HttpContext httpContext) =>
         {
@@ -569,8 +526,7 @@ public class Program
                     return Results.BadRequest(new { message = "Email and password are required" });
                 }
 
-                var ipAddress = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
-                    ?? httpContext.Connection.RemoteIpAddress?.ToString();
+                var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString();
 
                 var result = await authService.LoginAsync(request, ipAddress);
                 if (result == null || !result.IsSuccess)
@@ -591,7 +547,8 @@ public class Program
         .WithSummary("Login with email and password")
         .Produces<AuthResponse>(200)
         .Produces(400)
-        .Produces(401);
+        .Produces(401)
+        .AddEndpointFilter(Validate<LoginRequest>);
 
         authRoutes.MapGet("/me", async (HttpContext context, AuthService authService, PowersportsDbContext db) =>
         {
@@ -1215,6 +1172,9 @@ public class Program
         {
             var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
 
+            // Use a single read-uncommitted transaction so all counts come from the same snapshot.
+            await using var tx = await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadUncommitted);
+
             var totalProducts       = await context.Products.CountAsync(p => p.IsActive);
             var inactiveProducts    = await context.Products.CountAsync(p => !p.IsActive);
             var featuredProducts    = await context.Products.CountAsync(p => p.IsActive && p.IsFeatured);
@@ -1801,18 +1761,34 @@ public class Program
                     foreach (var fp in Directory.GetFiles(dir, "backup_*.json"))
                     {
                         var fi = new FileInfo(fp);
-                        var fn = fi.Name;
+                        var fn = fi.Name; // backup_{type}{_name}_{YYYYMMDD}_{HHmmss}.json
                         var tp = fn.Contains("_auto_") ? "auto" : "manual";
-                        int rc = 0;
+
+                        // Parse name from filename: strip prefix "backup_{type}" and suffix "_{date}_{time}.json"
                         string? nm = null;
+                        var withoutPrefix = fn.StartsWith($"backup_{tp}_") ? fn[$"backup_{tp}_".Length..] : fn;
+                        var withoutExt = withoutPrefix.EndsWith(".json") ? withoutPrefix[..^5] : withoutPrefix;
+                        // Last two underscore-segments are date + time
+                        var segments = withoutExt.Split('_');
+                        if (segments.Length > 2)
+                        {
+                            var namePart = string.Join("_", segments[..^2]).Replace("_", " ").Trim();
+                            if (!string.IsNullOrWhiteSpace(namePart)) nm = namePart;
+                        }
+
+                        // Read only the first 512 bytes to extract RecordCount without loading the full file
+                        int rc = 0;
                         try
                         {
-                            var txt = File.ReadAllText(fp);
-                            var doc = JsonDocument.Parse(txt);
+                            Span<byte> header = stackalloc byte[512];
+                            using var fs = new FileStream(fp, FileMode.Open, FileAccess.Read, FileShare.Read);
+                            var bytesRead = fs.Read(header);
+                            var partial = System.Text.Encoding.UTF8.GetString(header[..bytesRead]);
+                            using var doc = JsonDocument.Parse(partial + "}}"); // close any open objects
                             if (doc.RootElement.TryGetProperty("RecordCount", out var cProp)) rc = cProp.GetInt32();
-                            if (doc.RootElement.TryGetProperty("Name", out var nProp)) nm = nProp.GetString();
                         }
                         catch { }
+
                         allEntries.Add((fn, nm, tp, isProtected, fi.Length, fi.CreationTime, rc));
                     }
                 }
@@ -1851,7 +1827,7 @@ public class Program
         .RequireAuthorization("SuperAdminOnly");
 
         // Download Backup
-        backupRoutes.MapGet("/download/{fileName}", (string fileName, ILogger<Program> logger) =>
+        backupRoutes.MapGet("/download/{fileName}", async (string fileName, ILogger<Program> logger) =>
         {
             try
             {
@@ -1869,7 +1845,7 @@ public class Program
                     return Results.NotFound(new { message = "Backup file not found" });
                 }
 
-                var fileBytes = File.ReadAllBytes(backupPath);
+                var fileBytes = await File.ReadAllBytesAsync(backupPath);
                 return Results.File(fileBytes, "application/json", fileName);
             }
             catch (Exception ex)
