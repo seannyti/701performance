@@ -225,8 +225,8 @@ public class FileService
             }
 
             var validationResult = ValidateImageFile(file);
-            if (!validationResult.Success)
-                return AuthServiceResult<MediaFile>.Failure(validationResult.Message ?? "Invalid image file");
+            if (!validationResult.IsSuccess)
+                return AuthServiceResult<MediaFile>.Failure(validationResult.ErrorMessage ?? "Invalid image file");
 
             if (file.Length > _maxFileSize)
             {

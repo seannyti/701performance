@@ -3938,7 +3938,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error linking media file to product {ProductId}", productId);
-                app.Logger.LogError(ex, "Failed to link media file"); return Results.Problem("Failed to link media file.");
+                return Results.Problem("Failed to link media file.");
             }
         })
         .WithName("LinkMediaToProduct")
@@ -3987,7 +3987,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error retrieving product gallery for product {ProductId}", productId);
-                app.Logger.LogError(ex, "Failed to retrieve gallery"); return Results.Problem("Failed to retrieve gallery.");
+                return Results.Problem("Failed to retrieve gallery.");
             }
         })
         .WithName("GetProductGallery")
@@ -4040,7 +4040,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error updating product image {Id}", id);
-                app.Logger.LogError(ex, "Failed to update image"); return Results.Problem("Failed to update image.");
+                return Results.Problem("Failed to update image.");
             }
         })
         .WithName("UpdateProductImage")
@@ -4094,7 +4094,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error removing product image {Id}", id);
-                app.Logger.LogError(ex, "Failed to remove image"); return Results.Problem("Failed to remove image.");
+                return Results.Problem("Failed to remove image.");
             }
         })
         .WithName("UnlinkProductImage")
@@ -4164,7 +4164,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error linking media file to category {CategoryId}", categoryId);
-                app.Logger.LogError(ex, "Failed to link media file"); return Results.Problem("Failed to link media file.");
+                return Results.Problem("Failed to link media file.");
             }
         })
         .WithName("LinkMediaToCategory")
@@ -4211,7 +4211,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                app.Logger.LogError(ex, "Failed to retrieve category image"); return Results.Problem("Failed to retrieve category image.");
+                return Results.Problem("Failed to retrieve category image.");
             }
         })
         .WithName("GetCategoryImage")
@@ -4245,7 +4245,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error removing category image for category {CategoryId}", categoryId);
-                app.Logger.LogError(ex, "Failed to remove image"); return Results.Problem("Failed to remove image.");
+                return Results.Problem("Failed to remove image.");
             }
         })
         .WithName("UnlinkCategoryImage")
