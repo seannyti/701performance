@@ -5,8 +5,14 @@ import type { User, AuthResponse } from '@/types'
 const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5226'}/api/v1`
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem('admin_token'))
-  const refreshToken = ref<string | null>(localStorage.getItem('admin_refresh_token'))
+  // Migrate any tokens previously in localStorage so old sessions don't persist after browser close.
+  const _mt = localStorage.getItem('admin_token')
+  const _mr = localStorage.getItem('admin_refresh_token')
+  if (_mt) { sessionStorage.setItem('admin_token', _mt); localStorage.removeItem('admin_token') }
+  if (_mr) { sessionStorage.setItem('admin_refresh_token', _mr); localStorage.removeItem('admin_refresh_token') }
+
+  const token = ref<string | null>(sessionStorage.getItem('admin_token'))
+  const refreshToken = ref<string | null>(sessionStorage.getItem('admin_refresh_token'))
   const user = ref<User | null>(null)
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
@@ -66,7 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch { return null }
   }
 
-  // Restore auth state from localStorage
+  // Restore auth state from sessionStorage
   const initializeAuth = async () => {
     const hasUrlToken = checkForTokenInUrl()
     
@@ -79,7 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
           const dedicatedToken = await issueAdminRefreshToken()
           if (dedicatedToken) {
             refreshToken.value = dedicatedToken
-            localStorage.setItem('admin_refresh_token', dedicatedToken)
+            sessionStorage.setItem('admin_refresh_token', dedicatedToken)
           }
           scheduleRefresh(token.value)
         } catch {
@@ -105,11 +111,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   const setToken = (newToken: string, newRefreshToken?: string) => {
     token.value = newToken
-    localStorage.setItem('admin_token', newToken)
+    sessionStorage.setItem('admin_token', newToken)
     
     if (newRefreshToken) {
       refreshToken.value = newRefreshToken
-      localStorage.setItem('admin_refresh_token', newRefreshToken)
+      sessionStorage.setItem('admin_refresh_token', newRefreshToken)
     }
   }
 
@@ -164,12 +170,12 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     refreshToken.value = null
     user.value = null
-    localStorage.removeItem('admin_token')
-    localStorage.removeItem('admin_refresh_token')
+    sessionStorage.removeItem('admin_token')
+    sessionStorage.removeItem('admin_refresh_token')
   }
 
   const refreshAccessToken = async (): Promise<boolean> => {
-    const rt = refreshToken.value || localStorage.getItem('admin_refresh_token')
+      const rt = refreshToken.value || sessionStorage.getItem('admin_refresh_token')
     if (!rt) return false
     try {
       const response = await fetch(`${API_URL}/auth/refresh-token`, {

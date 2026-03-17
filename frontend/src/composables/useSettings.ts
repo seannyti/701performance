@@ -1,4 +1,4 @@
-import { ref, onUnmounted, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { logError, logDebug } from '@/services/logger'
 import { SETTINGS_POLL_INTERVAL_MS } from '@/constants'
 
@@ -136,11 +136,6 @@ export function useSettings() {
     // If settings already loaded, start polling immediately
     startPolling()
   }
-
-  // Cleanup on component unmount
-  onUnmounted(() => {
-    stopPolling()
-  })
 
   const getSetting = (key: string, defaultValue: string = ''): string => {
     const value = settings.value[key]

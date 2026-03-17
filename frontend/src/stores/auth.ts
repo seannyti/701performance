@@ -17,10 +17,23 @@ interface SignupData {
 }
 
 export const useAuthStore = defineStore('auth', () => {
+  // Migrate any tokens that were previously stored in localStorage to sessionStorage,
+  // then clear them so they no longer survive a browser close.
+  const _migratedToken = localStorage.getItem('auth_token')
+  const _migratedRefresh = localStorage.getItem('refresh_token')
+  if (_migratedToken) {
+    sessionStorage.setItem('auth_token', _migratedToken)
+    localStorage.removeItem('auth_token')
+  }
+  if (_migratedRefresh) {
+    sessionStorage.setItem('refresh_token', _migratedRefresh)
+    localStorage.removeItem('refresh_token')
+  }
+
   // State
   const user = ref<User | null>(null);
-  const token = ref<string | null>(localStorage.getItem('auth_token'));
-  const refreshToken = ref<string | null>(localStorage.getItem('refresh_token'));
+  const token = ref<string | null>(sessionStorage.getItem('auth_token'));
+  const refreshToken = ref<string | null>(sessionStorage.getItem('refresh_token'));
   const isLoading = ref(false);
   const error = ref<string | null>(null);
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -63,11 +76,9 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = authToken;
       user.value = userData;
       refreshToken.value = rt;
-      
-      if (rememberMe || true) {
-        localStorage.setItem('auth_token', authToken);
-        if (rt) localStorage.setItem('refresh_token', rt);
-      }
+
+      sessionStorage.setItem('auth_token', authToken);
+      if (rt) sessionStorage.setItem('refresh_token', rt);
       
       axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
       scheduleRefresh(expiresAt);
@@ -109,8 +120,8 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = authToken;
       user.value = userData;
       refreshToken.value = rt;
-      localStorage.setItem('auth_token', authToken);
-      if (rt) localStorage.setItem('refresh_token', rt);
+      sessionStorage.setItem('auth_token', authToken);
+      if (rt) sessionStorage.setItem('refresh_token', rt);
       
       axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
       return { requiresEmailVerification: false };
@@ -130,8 +141,8 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null;
     refreshToken.value = null;
     error.value = null;
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('refresh_token');
     
     delete axios.defaults.headers.common['Authorization'];
     
@@ -159,7 +170,7 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   const checkAuth = async () => {
-    const storedToken = localStorage.getItem('auth_token');
+    const storedToken = sessionStorage.getItem('auth_token');
     
     if (!storedToken) {
       return;
@@ -168,7 +179,7 @@ export const useAuthStore = defineStore('auth', () => {
     // Only consume the refresh token if the access token is actually near expiry.
     // Refreshing eagerly on every page load causes race conditions when multiple
     // clients (frontend + admin) share the same refresh token.
-    const storedRefresh = localStorage.getItem('refresh_token');
+    const storedRefresh = sessionStorage.getItem('refresh_token');
     if (storedRefresh && isTokenNearExpiry(storedToken)) {
       const refreshed = await silentRefresh(storedRefresh);
       if (refreshed) return;
@@ -216,8 +227,8 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = newToken;
       refreshToken.value = newRt;
       user.value = userData;
-      localStorage.setItem('auth_token', newToken);
-      if (newRt) localStorage.setItem('refresh_token', newRt);
+      sessionStorage.setItem('auth_token', newToken);
+      if (newRt) sessionStorage.setItem('refresh_token', newRt);
       axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       scheduleRefresh(expiresAt);
       return true;
@@ -232,7 +243,7 @@ export const useAuthStore = defineStore('auth', () => {
     // Refresh at 80% of the token's lifetime (leaves 20% buffer)
     const refreshIn = Math.max(expiryMs * 0.8, 30_000);
     refreshTimer = setTimeout(async () => {
-      const rt = refreshToken.value || localStorage.getItem('refresh_token');
+      const rt = refreshToken.value || sessionStorage.getItem('refresh_token');
       if (rt) await silentRefresh(rt);
     }, refreshIn);
   };

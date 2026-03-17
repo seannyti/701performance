@@ -418,7 +418,10 @@ public class AuthService
     private string GenerateAccessToken(User user, int expiryMinutes)
     {
         var jwtSettings = _configuration.GetSection("JwtSettings");
-        var secretKey = jwtSettings["SecretKey"] ?? "your-super-secret-key-that-is-at-least-32-characters-long-for-security";
+        var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET")
+            ?? jwtSettings["SecretKey"];
+        if (string.IsNullOrWhiteSpace(secretKey))
+            throw new InvalidOperationException("JWT secret key is not configured. Set the JWT_SECRET environment variable.");
         var issuer = jwtSettings["Issuer"] ?? "PowersportsApi";
         var audience = jwtSettings["Audience"] ?? "PowersportsApp";
 
@@ -454,12 +457,14 @@ public class AuthService
     private async Task<string> GenerateAndSaveRefreshTokenAsync(int userId)
     {
         var refreshToken = GenerateSecureRefreshToken();
-        var expiryHours = GetRefreshTokenExpiryHours();
+        // Refresh token lifetime matches the configured session_timeout so a session
+        // can never silently outlive the admin-configured window.
+        var expiryMinutes = await GetAccessTokenExpiryMinutesAsync();
 
         var refreshTokenEntity = new RefreshToken
         {
             Token = refreshToken,
-            ExpiryDate = DateTime.UtcNow.AddHours(expiryHours),
+            ExpiryDate = DateTime.UtcNow.AddMinutes(expiryMinutes),
             UserId = userId,
             CreatedAt = DateTime.UtcNow
         };
@@ -487,10 +492,5 @@ public class AuthService
         if (int.TryParse(setting, out int timeout) && timeout > 0)
             return timeout;
         return int.Parse(_configuration["JwtSettings:AccessTokenExpiryMinutes"] ?? "60");
-    }
-
-    private int GetRefreshTokenExpiryHours()
-    {
-        return int.Parse(_configuration["JwtSettings:RefreshTokenExpiryHours"] ?? "24");
     }
 }

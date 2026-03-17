@@ -50,7 +50,10 @@ public class Program
         });
 
         var jwtSettings = configuration.GetSection("JwtSettings");
-        var secretKey = jwtSettings["SecretKey"] ?? "powersports-jwt-secret-key-2026-at-least-32-chars-long!";
+        var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET")
+            ?? jwtSettings["SecretKey"];
+        if (string.IsNullOrWhiteSpace(secretKey))
+            throw new InvalidOperationException("JWT secret key is not configured. Set the JWT_SECRET environment variable.");
         var key = Encoding.ASCII.GetBytes(secretKey);
 
         builder.Services.AddAuthentication(options =>
@@ -1521,6 +1524,10 @@ public class Program
                     new SiteSetting { Key = "enable_compression", DisplayName = "Enable Compression", Value = "true", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 13 },
                     
                     new SiteSetting { Key = "enable_maintenance_mode", DisplayName = "Enable Maintenance Mode", Value = "false", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 14 },
+
+                    // Music Player
+                    new SiteSetting { Key = "music_enabled", DisplayName = "Enable Music Player", Value = "false", Type = SettingType.Boolean, Category = "Music", SortOrder = 1 },
+                    new SiteSetting { Key = "music_embed_code", DisplayName = "Music Embed Code", Value = "", Type = SettingType.TextArea, Category = "Music", SortOrder = 2 },
 
                     // Email (SMTP)
                     new SiteSetting { Key = "smtp_enabled", DisplayName = "Enable Email (SMTP)", Value = "false", Type = SettingType.Boolean, Category = "Email", SortOrder = 1 },
@@ -4426,6 +4433,10 @@ public class Program
                 
                 // Advanced - System Settings
                 new SiteSetting { Key = "enable_maintenance_mode", DisplayName = "Enable Maintenance Mode", Value = "false", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 14 },
+
+                // Music Player
+                new SiteSetting { Key = "music_enabled", DisplayName = "Enable Music Player", Value = "false", Type = SettingType.Boolean, Category = "Music", SortOrder = 1 },
+                new SiteSetting { Key = "music_embed_code", DisplayName = "Music Embed Code", Value = "", Type = SettingType.TextArea, Category = "Music", SortOrder = 2 },
 
                 // Email (SMTP)
                 new SiteSetting { Key = "smtp_enabled", DisplayName = "Enable Email (SMTP)", Value = "false", Type = SettingType.Boolean, Category = "Email", SortOrder = 1 },

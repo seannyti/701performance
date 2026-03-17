@@ -3621,6 +3621,10 @@ const SETTING_METADATA: Record<string, { displayName: string; type: string; cate
   smtp_from_name: { displayName: 'From Name', type: 'Text', category: 'Email', sortOrder: 7 },
   smtp_use_ssl: { displayName: 'Use SSL/TLS', type: 'Boolean', category: 'Email', sortOrder: 8 },
   site_url: { displayName: 'Site URL', type: 'Url', category: 'Email', sortOrder: 9 },
+
+  // Music Player
+  music_enabled: { displayName: 'Enable Music Player', type: 'Boolean', category: 'Music', sortOrder: 1, defaultValue: 'false' },
+  music_embed_code: { displayName: 'Embed Code', type: 'TextArea', category: 'Music', sortOrder: 2, defaultValue: '' },
   
   // Theme - Preset Tracking
   theme_preset_active: { displayName: 'Active Theme Preset', type: 'Text', category: 'Theme', sortOrder: 99, defaultValue: '' },

@@ -43,6 +43,11 @@
               📁 Media Library
             </router-link>
           </li>
+          <li class="nav-item">
+            <router-link to="/music" class="nav-link" active-class="active" style="padding-left: 2rem;">
+              🎵 Music Player
+            </router-link>
+          </li>
           <li class="nav-item" v-if="authStore.isSuperAdmin">
             <router-link to="/users" class="nav-link" active-class="active">
               👥 Users

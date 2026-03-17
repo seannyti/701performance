@@ -17,6 +17,9 @@
     <!-- Footer component - hidden during maintenance and on special pages -->
     <Footer v-if="!hideHeaderFooter" />
 
+    <!-- Music player - floating bottom-right, controlled via Admin → Settings → Music -->
+    <MusicPlayer />
+
     <!-- Toast notifications -->
     <Teleport to="body">
       <div class="toast-container">
@@ -46,6 +49,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import Header from './components/Header.vue';
 import Footer from './components/Footer.vue';
+import MusicPlayer from './components/MusicPlayer.vue';
 import { useTheme } from './composables/useTheme';
 import { useToast } from './composables/useToast';
 

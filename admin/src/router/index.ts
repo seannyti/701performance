@@ -40,6 +40,12 @@ const router = createRouter({
       component: () => import('@/views/MediaLibrary.vue'),
       meta: { requiresAuth: true }
     },
+    {
+      path: '/music',
+      name: 'music',
+      component: () => import('@/views/Music.vue'),
+      meta: { requiresAuth: true }
+    },
     // Redirect old routes to new combined catalog
     {
       path: '/products',

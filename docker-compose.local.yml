@@ -1,0 +1,72 @@
+services:
+
+  db:
+    image: mysql:8.0
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LOCAL_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: defaultdb
+      MYSQL_USER: akmadmin
+      MYSQL_PASSWORD: ${LOCAL_DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${LOCAL_DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "5226:5226"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DatabaseProvider=MySQL
+      - ConnectionStrings__DefaultConnection=Server=db;Port=3306;Database=defaultdb;User=akmadmin;Password=${LOCAL_DB_PASSWORD};
+      - JwtSettings__SecretKey=${LOCAL_JWT_SECRET}
+    volumes:
+      - uploads:/app/wwwroot/uploads
+      - backups:/app/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: http://localhost:5226
+        VITE_ADMIN_URL: http://localhost:81
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+      args:
+        VITE_API_URL: http://localhost:5226
+    ports:
+      - "81:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  db-data:
+    driver: local
+  uploads:
+    driver: local
+  backups:
+    driver: local

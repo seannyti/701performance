@@ -12,6 +12,13 @@ RUN npm ci
 # Copy sources and build
 COPY packages/ ./packages/
 COPY admin/ ./admin/
+
+# Build args for Vite env vars
+ARG VITE_API_URL
+ARG VITE_ADMIN_URL
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_ADMIN_URL=$VITE_ADMIN_URL
+
 RUN npm run build:admin
 
 # Serve stage
