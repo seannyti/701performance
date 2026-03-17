@@ -11,6 +11,7 @@ public class ProductService
 {
     private readonly PowersportsDbContext _context;
     private readonly bool _useDatabase;
+    private readonly ILogger<ProductService> _logger;
 
     // Fallback in-memory data if database is not available
     private static readonly List<Product> _fallbackProducts = new()
@@ -107,10 +108,11 @@ public class ProductService
         }
     };
 
-    public ProductService(PowersportsDbContext context, IConfiguration configuration)
+    public ProductService(PowersportsDbContext context, IConfiguration configuration, ILogger<ProductService> logger)
     {
         _context = context;
         _useDatabase = configuration.GetValue<string>("DatabaseProvider") != "InMemory";
+        _logger = logger;
     }
 
     /// <summary>
@@ -146,10 +148,10 @@ public class ProductService
                 return await Task.FromResult(_fallbackProducts);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // If database fails, fall back to in-memory data
-            return await Task.FromResult(_fallbackProducts);
+            _logger.LogWarning(ex, "Database unavailable or error in GetAllProductsAsync, returning fallback products");
+            return _fallbackProducts;
         }
     }
 

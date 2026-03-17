@@ -126,15 +126,15 @@ public class AuthService
             }
 
             // Generate tokens
-            var expiryMinutesReg = await GetAccessTokenExpiryMinutesAsync();
-            var accessToken = GenerateAccessToken(user, expiryMinutesReg);
+            var accessExpiryMinutesReg = GetAccessTokenExpiryMinutes();
+            var accessToken = GenerateAccessToken(user, accessExpiryMinutesReg);
             var refreshToken = await GenerateAndSaveRefreshTokenAsync(user.Id);
 
             var response = new AuthResponse
             {
                 Token = accessToken,
                 RefreshToken = refreshToken,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(expiryMinutesReg),
+                ExpiresAt = DateTime.UtcNow.AddMinutes(accessExpiryMinutesReg),
                 User = new UserResponse
                 {
                     Id = user.Id,
@@ -237,15 +237,15 @@ public class AuthService
             _logger.LogInformation("User logged in: {Email}", request.Email);
 
             // Generate tokens
-            var expiryMinutes = await GetAccessTokenExpiryMinutesAsync();
-            var accessToken = GenerateAccessToken(user, expiryMinutes);
+            var accessExpiryMinutes = GetAccessTokenExpiryMinutes();
+            var accessToken = GenerateAccessToken(user, accessExpiryMinutes);
             var refreshToken = await GenerateAndSaveRefreshTokenAsync(user.Id);
 
             var response = new AuthResponse
             {
                 Token = accessToken,
                 RefreshToken = refreshToken,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(expiryMinutes),
+                ExpiresAt = DateTime.UtcNow.AddMinutes(accessExpiryMinutes),
                 User = new UserResponse
                 {
                     Id = user.Id,
@@ -297,8 +297,8 @@ public class AuthService
             _context.RefreshTokens.Remove(refreshTokenEntity);
 
             // Generate new tokens
-            var refreshExpiryMinutes = await GetAccessTokenExpiryMinutesAsync();
-            var newAccessToken = GenerateAccessToken(user, refreshExpiryMinutes);
+            var accessExpiryMinutesRefresh = GetAccessTokenExpiryMinutes();
+            var newAccessToken = GenerateAccessToken(user, accessExpiryMinutesRefresh);
             var newRefreshToken = await GenerateAndSaveRefreshTokenAsync(user.Id);
 
             await _context.SaveChangesAsync();
@@ -309,7 +309,7 @@ public class AuthService
             {
                 Token = newAccessToken,
                 RefreshToken = newRefreshToken,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(refreshExpiryMinutes),
+                ExpiresAt = DateTime.UtcNow.AddMinutes(accessExpiryMinutesRefresh),
                 User = new UserResponse
                 {
                     Id = user.Id,
@@ -457,14 +457,14 @@ public class AuthService
     private async Task<string> GenerateAndSaveRefreshTokenAsync(int userId)
     {
         var refreshToken = GenerateSecureRefreshToken();
-        // Refresh token lifetime matches the configured session_timeout so a session
-        // can never silently outlive the admin-configured window.
-        var expiryMinutes = await GetAccessTokenExpiryMinutesAsync();
+        // Refresh token lifetime is controlled by session_timeout — when it expires
+        // the user must re-authenticate, enforcing the admin-configured session boundary.
+        var sessionTimeoutMinutes = await GetSessionTimeoutMinutesAsync();
 
         var refreshTokenEntity = new RefreshToken
         {
             Token = refreshToken,
-            ExpiryDate = DateTime.UtcNow.AddMinutes(expiryMinutes),
+            ExpiryDate = DateTime.UtcNow.AddMinutes(sessionTimeoutMinutes),
             UserId = userId,
             CreatedAt = DateTime.UtcNow
         };
@@ -483,7 +483,14 @@ public class AuthService
         return Convert.ToBase64String(randomNumber);
     }
 
-    private async Task<int> GetAccessTokenExpiryMinutesAsync()
+    // Short-lived JWT duration — read from config, not the DB session_timeout.
+    private int GetAccessTokenExpiryMinutes() =>
+        int.Parse(_configuration["JwtSettings:AccessTokenExpiryMinutes"] ?? "60");
+
+    // Maximum session length — controls how long the refresh token lives.
+    // When the refresh token expires the user must re-authenticate, enforcing
+    // the admin-configured session boundary.
+    private async Task<int> GetSessionTimeoutMinutesAsync()
     {
         var setting = await _context.SiteSettings
             .Where(s => s.Key == "session_timeout")
@@ -491,6 +498,6 @@ public class AuthService
             .FirstOrDefaultAsync();
         if (int.TryParse(setting, out int timeout) && timeout > 0)
             return timeout;
-        return int.Parse(_configuration["JwtSettings:AccessTokenExpiryMinutes"] ?? "60");
+        return 480; // default 8-hour session if setting is missing
     }
 }

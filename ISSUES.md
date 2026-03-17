@@ -44,6 +44,80 @@ Ongoing record of bugs, code quality issues, and the fixes applied.
 
 ---
 
+## Backend Audit (2026-03-17)
+
+### ✅ [BUG] #1 — Session timeout conflates access token and refresh token lifetime
+**Completed:** 2026-03-17
+**Files:** `backend/Services/AuthService.cs`
+**Issue:** `GetAccessTokenExpiryMinutesAsync()` reads `session_timeout` from the DB (480 min) and uses it for **both** the JWT access token expiry and the refresh token expiry. Both tokens expire at the same time, making the refresh mechanism pointless. Worse, if an admin lowers the setting (e.g. 30 min), both tokens expire in 30 min with no grace period — the user cannot silently refresh and gets hard-kicked out. `RefreshTokenExpiryHours: 24` in appsettings is never read.
+**Fix:** Split the two concerns. `GetAccessTokenExpiryMinutesAsync()` reads `JwtSettings:AccessTokenExpiryMinutes` from config (short-lived JWT). New `GetSessionTimeoutMinutesAsync()` reads `session_timeout` from DB and is used exclusively by `GenerateAndSaveRefreshTokenAsync`.
+
+---
+
+### ✅ [BUG] #2 — Duplicate log calls in 8 catch blocks
+**Completed:** 2026-03-17
+**File:** `backend/Program.cs`
+**Issue:** Eight catch blocks call both an injected `logger.LogError(...)` and `app.Logger.LogError(...)` on consecutive lines, producing duplicate log entries for every error. Affected endpoints: create/update/delete category, create/list/download/restore/delete backup.
+**Fix:** Remove the redundant `app.Logger.LogError` line from each affected catch block. Keep the injected `logger.LogError` (more specific category name).
+
+---
+
+### ✅ [CLEANUP] #3 — `RateLimitingMiddleware.cs` is dead code
+**Completed:** 2026-03-17
+**File:** `backend/Middleware/RateLimitingMiddleware.cs`
+**Issue:** The file exists but is never registered in the middleware pipeline. The built-in ASP.NET Core rate limiter (`app.UseRateLimiter()`) replaced it. A comment in Program.cs confirms this. The file creates false confidence that the custom middleware is active.
+**Fix:** Delete the file.
+
+---
+
+### ✅ [CLEANUP] #4 — Inconsistent logging: `app.Logger` vs injected `ILogger<Program>`
+**Completed:** 2026-03-17
+**File:** `backend/Program.cs`
+**Issue:** Some endpoint lambdas inject `ILogger<Program> logger` and use it; others capture `app.Logger` from the outer scope. After fixing #2, the remaining inconsistency is in endpoints that never injected a logger at all (create/delete product, stock patch, user management, settings, appointments).
+**Fix:** For endpoints that use injected `logger` in their success paths, ensure catch blocks also use it (fixed by #2). For endpoints using only `app.Logger`, this is acceptable but noted for future cleanup.
+
+---
+
+### ✅ [CLEANUP] #5 — `RefreshTokenExpiryHours` is a dead config key
+**Completed:** 2026-03-17
+**Files:** `backend/appsettings.json`, `backend/appsettings.Production.json`
+**Issue:** `JwtSettings:RefreshTokenExpiryHours` is defined in both appsettings files but never read anywhere in the codebase. The refresh token lifetime is controlled entirely by `session_timeout` from the DB.
+**Fix:** Remove the key from both files. Resolved as part of #1 (once session_timeout is scoped to refresh tokens, the config-based fallback is `AccessTokenExpiryMinutes`).
+
+---
+
+### ✅ [BUG] #6 — HTTPS redirect fires after CORS and static files
+**Completed:** 2026-03-17
+**File:** `backend/Program.cs`
+**Issue:** `app.UseHttpsRedirection()` is placed after `app.UseCors()` and `app.UseStaticFiles()`. Static files and CORS preflight responses are served over HTTP before the redirect fires, meaning images/JS/CSS can leak over plain HTTP in production.
+**Fix:** Move `UseHttpsRedirection()` block to before `UseCors()`.
+
+---
+
+### ✅ [CONFIG] #7 — Production server IP hardcoded in base `appsettings.json`
+**Completed:** 2026-03-17
+**Files:** `backend/appsettings.json`, `backend/appsettings.Production.json`
+**Issue:** `23.239.26.52` and `:81` are in `CorsSettings:AllowedOrigins` in the base appsettings which is committed to source control. Also, `appsettings.Production.json` uses a `CorsOrigins` flat-string key that the code never reads — production CORS is not actually being overridden.
+**Fix:** Remove production IPs from base appsettings. Add proper `CorsSettings:AllowedOrigins` array to `appsettings.Production.json`.
+
+---
+
+### ✅ [CLEANUP] #9 — `FileUploadSettings` config vs hardcoded constants (scan flag)
+**Completed:** 2026-03-17 — assessed, no change needed
+**File:** `backend/Services/FileService.cs`
+**Issue (from scan):** Scan reported constants hardcoded in FileService. Requires verification.
+**Finding:** FALSE ALARM. FileService already injects `IConfiguration` and reads `MaxImageWidth`, `ThumbnailSize`, `ImageQuality` etc. from `FileUploadSettings` at construction time (lines 42–48). No change needed.
+
+---
+
+### ✅ [BUG] #10 — Silent exception swallow in `ProductService.GetAllProductsAsync`
+**Completed:** 2026-03-17
+**File:** `backend/Services/ProductService.cs`
+**Issue:** The outermost catch block silently falls back to in-memory products with no log call. Any exception — including auth failures, connection pool exhaustion, or programming errors — is swallowed invisibly in production.
+**Fix:** Add `_logger.LogWarning(ex, "Database unavailable or error in GetAllProductsAsync, returning fallback products")`.
+
+---
+
 ## Open
 
 ### ✅ [BUG] Newsletter checkbox value never sent to the API

@@ -216,17 +216,17 @@ public class Program
         }
 
         // Security middleware pipeline
-        app.UseMiddleware<PowersportsApi.Middleware.SecurityHeadersMiddleware>();
-        app.UseMiddleware<PowersportsApi.Middleware.RequestValidationMiddleware>();
-        app.UseRateLimiter();
-        
-        app.UseCors("AllowFrontend");
-        app.UseStaticFiles();
-
         if (!app.Environment.IsDevelopment())
         {
             app.UseHttpsRedirection();
         }
+
+        app.UseMiddleware<PowersportsApi.Middleware.SecurityHeadersMiddleware>();
+        app.UseMiddleware<PowersportsApi.Middleware.RequestValidationMiddleware>();
+        app.UseRateLimiter();
+
+        app.UseCors("AllowFrontend");
+        app.UseStaticFiles();
 
         app.UseAuthentication();
         app.UseAuthorization();
@@ -738,7 +738,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to create category");
-                app.Logger.LogError(ex, "Failed to create category"); return Results.BadRequest(new { message = "Failed to create category." });
+                return Results.BadRequest(new { message = "Failed to create category." });
             }
         })
         .WithName("CreateCategory")
@@ -786,7 +786,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to update category {CategoryId}", id);
-                app.Logger.LogError(ex, "Failed to update category"); return Results.BadRequest(new { message = "Failed to update category." });
+                return Results.BadRequest(new { message = "Failed to update category." });
             }
         })
         .WithName("UpdateCategory")
@@ -846,7 +846,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to delete category {CategoryId}", id);
-                app.Logger.LogError(ex, "Failed to delete category"); return Results.BadRequest(new { message = "Failed to delete category." });
+                return Results.BadRequest(new { message = "Failed to delete category." });
             }
         })
         .WithName("DeleteCategory")
@@ -1738,7 +1738,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to create backup");
-                app.Logger.LogError(ex, "Failed to create backup"); return Results.BadRequest(new { message = "Failed to create backup." });
+                return Results.BadRequest(new { message = "Failed to create backup." });
             }
         })
         .WithName("CreateBackup")
@@ -1818,7 +1818,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to list backups");
-                app.Logger.LogError(ex, "Failed to list backups"); return Results.BadRequest(new { message = "Failed to list backups." });
+                return Results.BadRequest(new { message = "Failed to list backups." });
             }
         })
         .WithName("ListBackups")
@@ -1850,8 +1850,8 @@ public class Program
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, $"Failed to download backup: {fileName}");
-                app.Logger.LogError(ex, "Failed to download backup"); return Results.BadRequest(new { message = "Failed to download backup." });
+                logger.LogError(ex, "Failed to download backup: {FileName}", fileName);
+                return Results.BadRequest(new { message = "Failed to download backup." });
             }
         })
         .WithName("DownloadBackup")
@@ -1982,7 +1982,7 @@ public class Program
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to restore backup");
-                app.Logger.LogError(ex, "Failed to restore backup"); return Results.BadRequest(new { message = "Failed to restore backup." });
+                return Results.BadRequest(new { message = "Failed to restore backup." });
             }
         })
         .WithName("RestoreBackup")
@@ -2024,8 +2024,8 @@ public class Program
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, $"Failed to delete backup: {fileName}");
-                app.Logger.LogError(ex, "Failed to delete backup"); return Results.BadRequest(new { message = "Failed to delete backup." });
+                logger.LogError(ex, "Failed to delete backup: {FileName}", fileName);
+                return Results.BadRequest(new { message = "Failed to delete backup." });
             }
         })
         .WithName("DeleteBackup")
