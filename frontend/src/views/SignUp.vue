@@ -273,8 +273,7 @@ const handleSignup = async () => {
       lastName: signupForm.lastName.trim(),
       email: signupForm.email,
       password: signupForm.password,
-      phone: signupForm.phone,
-      subscribeNewsletter: signupForm.subscribeNewsletter
+      phone: signupForm.phone
     });
     
     if (result.requiresEmailVerification) {

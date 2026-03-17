@@ -13,7 +13,6 @@ interface SignupData {
   email: string;
   password: string;
   phone?: string;
-  subscribeNewsletter?: boolean;
 }
 
 export const useAuthStore = defineStore('auth', () => {

@@ -288,43 +288,22 @@ const loadAppointments = async () => {
   })
 }
 
-const previousMonth = () => {
+const navigateMonth = (delta: number) => {
   currentDate.value = new Date(
     currentDate.value.getFullYear(),
-    currentDate.value.getMonth() - 1,
+    currentDate.value.getMonth() + delta,
     1
   )
   loadAppointments()
   // Auto-select today if in this month, otherwise select the 1st
   setTimeout(() => {
     const today = calendarDays.value.find(day => day.isToday && !day.isOtherMonth)
-    if (today) {
-      selectedDay.value = today
-    } else {
-      const firstDay = calendarDays.value.find(day => !day.isOtherMonth)
-      selectedDay.value = firstDay || null
-    }
+    selectedDay.value = today || calendarDays.value.find(day => !day.isOtherMonth) || null
   }, 0)
 }
 
-const nextMonth = () => {
-  currentDate.value = new Date(
-    currentDate.value.getFullYear(),
-    currentDate.value.getMonth() + 1,
-    1
-  )
-  loadAppointments()
-  // Auto-select today if in this month, otherwise select the 1st
-  setTimeout(() => {
-    const today = calendarDays.value.find(day => day.isToday && !day.isOtherMonth)
-    if (today) {
-      selectedDay.value = today
-    } else {
-      const firstDay = calendarDays.value.find(day => !day.isOtherMonth)
-      selectedDay.value = firstDay || null
-    }
-  }, 0)
-}
+const previousMonth = () => navigateMonth(-1)
+const nextMonth = () => navigateMonth(1)
 
 const selectDay = (day: CalendarDay) => {
   if (!day.isOtherMonth) {

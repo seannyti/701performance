@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="isOpen" class="modal-overlay" @click="handleOverlayClick">
+    <div v-if="isOpen" class="modal-overlay" @click="closeModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h2>{{ isEditing ? 'Edit Appointment' : 'New Appointment' }}</h2>
@@ -313,10 +313,6 @@ const handleSubmit = async () => {
 const closeModal = () => {
   error.value = ''
   emit('close')
-}
-
-const handleOverlayClick = () => {
-  closeModal()
 }
 
 // Watch for modal opening

@@ -127,7 +127,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const refreshAccessToken = async (): Promise<boolean> => {
-      const rt = refreshToken.value || sessionStorage.getItem('admin_refresh_token')
+    const rt = refreshToken.value || sessionStorage.getItem('admin_refresh_token')
     if (!rt) return false
     try {
       const response = await fetch(`${API_URL}/auth/refresh-token`, {
