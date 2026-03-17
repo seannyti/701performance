@@ -19,9 +19,8 @@ COPY --from=build /app/publish .
 # Create uploads directory
 RUN mkdir -p wwwroot/uploads
 
-# Embed factory-default backup (protected, always present, never volume-mounted)
+# Create protected backups directory (factory-default backups managed at runtime)
 RUN mkdir -p protected-backups
-COPY backend/PowersportsApi/backups/protected/ protected-backups/
 
 VOLUME ["/app/wwwroot/uploads"]
 VOLUME ["/app/backups"]
