@@ -40,6 +40,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.admin
+      args:
+        VITE_API_URL: http://23.239.26.52:5226
     ports:
       - "81:80"
     depends_on:
