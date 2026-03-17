@@ -22,7 +22,7 @@
       </div>
 
       <!-- Loading State -->
-      <div v-if="loading" class="loading-state">
+      <div v-if="isLoading && settings.length === 0" class="loading-state">
         <div class="spinner"></div>
         <p>Loading settings...</p>
       </div>
@@ -3880,7 +3880,7 @@ const sendTestEmail = async () => {
     testEmailSuccess.value = ''
     testEmailError.value = ''
     try {
-      const data = await apiPost(`/admin/settings/test-email?email=${encodeURIComponent(testEmailAddress.value)}`)
+      const data = await apiPost<{ message?: string }>(`/admin/settings/test-email?email=${encodeURIComponent(testEmailAddress.value)}`)
       testEmailSuccess.value = data.message || 'Test email sent successfully!'
       setTimeout(() => testEmailSuccess.value = '', SUCCESS_MESSAGE_DURATION_MS)
     } catch (err: any) {
@@ -3901,8 +3901,8 @@ const resetSettings = async () => {
     try {
       logDebug('Resetting settings to defaults');
       
-      const result = await apiPost('/admin/settings/reset')
-      logDebug('Settings reset successful', result);
+      await apiPost('/admin/settings/reset')
+      logDebug('Settings reset successful');
       
       // Reload settings
       await loadSettings()

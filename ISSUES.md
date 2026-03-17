@@ -6,6 +6,14 @@ Ongoing record of bugs, code quality issues, and the fixes applied.
 
 ## Fixed
 
+### ✅ [BUG] `loading` undefined in Settings.vue — error state never shown
+**File:** `admin/src/views/Settings.vue`
+**Completed:** 2026-03-17
+**Issue:** Template used `v-if="loading"` on line 25 but the script only destructures `isLoading` from `useLoadingState()`. `loading` is always `undefined`, so the entire `v-if` / `v-else-if="error"` / `v-else` chain was broken — the loading state never showed, and critically the error state could never render either. If settings failed to load, the user saw a blank form with no feedback.
+**Fix:** Changed `v-if="loading"` to `v-if="isLoading && settings.length === 0"` to match the condition already used by the overlay spinner above it.
+
+---
+
 ### ✅ [CLEANUP] Indentation inconsistency in `refreshAccessToken`
 **File:** `admin/src/stores/auth.ts`
 **Issue:** The first line of `refreshAccessToken` was indented 6 spaces instead of 4, inconsistent with every other function in the file.
@@ -118,8 +126,6 @@ Ongoing record of bugs, code quality issues, and the fixes applied.
 
 ---
 
-## Open
-
 ### ✅ [BUG] Newsletter checkbox value never sent to the API
 **Files:** `frontend/src/stores/auth.ts`, `frontend/src/views/SignUp.vue`
 **Issue:** An earlier cleanup incorrectly removed `subscribeNewsletter` from `SignupData` under the assumption the backend didn't support it. The backend (`RegisterRequest` and `User` models) already had the field fully implemented.
@@ -131,3 +137,15 @@ Ongoing record of bugs, code quality issues, and the fixes applied.
 **Files:** `admin/src/utils/apiClient.ts`, `frontend/src/services/api.ts`
 **Issue:** The two clients serve different roles (admin uses a general auth-aware `fetch` wrapper; frontend uses an axios-based product/category service with caching), so full consolidation isn't practical without a larger refactor. The concrete divergence was in 401 handling: the admin client retries the original request after a silent token refresh; the frontend's axios response interceptor only logged the error and rejected.
 **Fix:** Added a 401 retry path to the frontend's axios response interceptor. On a 401, it calls `authStore.silentRefresh()` once (guarded by `_retried` to prevent infinite loops), then replays the original request with the new token. Also exposed `silentRefresh` from the auth store's return value so the interceptor can call it.
+
+---
+
+### ✅ [BUG] TypeScript errors in `Settings.vue` — `apiPost` untyped return values
+**Completed:** 2026-03-17
+**File:** `admin/src/views/Settings.vue`
+**Issue:** Two TypeScript errors caused by `apiPost` calls with no type parameter (defaults to `unknown`):
+1. **Line 3884** — `data.message` in `sendTestEmail`: accessing `.message` on `unknown` is a type error.
+2. **Line 3905** — `logDebug('Settings reset successful', result)` in `resetSettings`: `logDebug`'s second parameter is typed as `LogContext`, but `result` was `unknown`.
+**Fix:**
+1. Typed the `sendTestEmail` call as `apiPost<{ message?: string }>` so `.message` is valid.
+2. Dropped the `result` capture in `resetSettings` entirely — the return value was only passed to a debug log and has no functional use. Updated `logDebug` to a message-only call.
