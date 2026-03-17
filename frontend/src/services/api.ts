@@ -3,6 +3,7 @@ import type { Product } from '@/types';
 import { logApi, logError } from './logger';
 import { apiCache } from './cache';
 import { API_TIMEOUT_MS } from '@/constants';
+import { useAuthStore } from '@/stores/auth';
 
 // API base URL - configurable for different environments
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5226';
@@ -27,7 +28,7 @@ if (import.meta.env.DEV) {
   );
 }
 
-// Response interceptor for error handling
+// Response interceptor for error handling and 401 retry
 apiClient.interceptors.response.use(
   (response) => {
     // Fix image URLs for products
@@ -43,10 +44,25 @@ apiClient.interceptors.response.use(
     }
     return response
   },
-  (error) => {
-    logError('API request failed', error, { 
+  async (error) => {
+    const originalRequest = error.config;
+
+    // On 401, attempt a silent token refresh once then retry the original request
+    if (error.response?.status === 401 && !originalRequest._retried) {
+      originalRequest._retried = true;
+      const authStore = useAuthStore();
+      const refreshed = await authStore.silentRefresh(
+        authStore.refreshToken || sessionStorage.getItem('refresh_token') || ''
+      );
+      if (refreshed) {
+        originalRequest.headers['Authorization'] = `Bearer ${authStore.token}`;
+        return apiClient(originalRequest);
+      }
+    }
+
+    logError('API request failed', error, {
       status: error.response?.status,
-      data: error.response?.data 
+      data: error.response?.data
     });
     return Promise.reject(error);
   }

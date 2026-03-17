@@ -13,6 +13,7 @@ interface SignupData {
   email: string;
   password: string;
   phone?: string;
+  subscribeNewsletter?: boolean;
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -107,7 +108,8 @@ export const useAuthStore = defineStore('auth', () => {
         lastName: signupData.lastName,
         email: signupData.email,
         password: signupData.password,
-        phone: signupData.phone
+        phone: signupData.phone,
+        subscribeNewsletter: signupData.subscribeNewsletter ?? false
       });
 
       if (response.data.requiresEmailVerification) {
@@ -134,7 +136,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
-  const logout = async (): Promise<string | null> => {
+  const logout = () => {
     if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
     user.value = null;
     token.value = null;
@@ -142,22 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null;
     sessionStorage.removeItem('auth_token');
     sessionStorage.removeItem('refresh_token');
-    
     delete axios.defaults.headers.common['Authorization'];
-    
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5226'}/api/v1/settings`);
-      if (response.data) {
-        const maintenanceSetting = response.data.find((s: any) => s.key === 'enable_maintenance_mode');
-        if (maintenanceSetting?.value === 'true') {
-          return '/maintenance';
-        }
-      }
-    } catch (err) {
-      // Silently handle error
-    }
-    
-    return null;
   };
 
   // Returns true if the JWT access token expires within the next 5 minutes
@@ -275,6 +262,7 @@ export const useAuthStore = defineStore('auth', () => {
     signup,
     logout,
     checkAuth,
+    silentRefresh,
     clearError,
     // Role checking
     isAdmin,

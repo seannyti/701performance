@@ -178,13 +178,10 @@ const closeMobileMenu = () => {
   isMobileMenuOpen.value = false;
 };
 
-const handleLogout = async () => {
-  const redirectPath = await authStore.logout();
+const handleLogout = () => {
+  authStore.logout();
   closeMobileMenu();
-  
-  // If maintenance mode is active, redirect to maintenance page
-  // Otherwise, redirect to home
-  router.push(redirectPath || '/');
+  router.push('/');
 };
 </script>
 
