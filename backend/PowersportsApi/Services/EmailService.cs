@@ -72,7 +72,10 @@ public class EmailService
             message.Body = new TextPart("html") { Text = htmlBody };
 
             using var client = new SmtpClient();
-            var secureOption = smtp.UseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.Auto;
+            // Port 465 uses implicit SSL (SslOnConnect); port 587 uses STARTTLS
+            var secureOption = smtp.Port == 465
+                ? SecureSocketOptions.SslOnConnect
+                : (smtp.UseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.Auto);
             await client.ConnectAsync(smtp.Host, smtp.Port, secureOption);
 
             if (!string.IsNullOrWhiteSpace(smtp.Username))
