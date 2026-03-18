@@ -1,4 +1,3 @@
-using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace PowersportsApi.Migrations
 {
     /// <inheritdoc />
-    public partial class SeedHeroVideoSettings : Migration
+    public class SeedHeroVideoSettings : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
