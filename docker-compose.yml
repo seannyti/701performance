@@ -27,7 +27,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        VITE_API_URL: http://23.239.26.52:5226
+        VITE_API_URL: http://23.239.26.52
         VITE_ADMIN_URL: http://23.239.26.52:81
     image: app-frontend
     ports:
@@ -41,7 +41,7 @@ services:
       context: .
       dockerfile: Dockerfile.admin
       args:
-        VITE_API_URL: http://23.239.26.52:5226
+        VITE_API_URL: http://23.239.26.52:81
     ports:
       - "81:80"
     depends_on:
