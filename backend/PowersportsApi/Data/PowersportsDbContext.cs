@@ -455,54 +455,6 @@ public class PowersportsDbContext : DbContext
             },
             new SiteSetting
             {
-                Id = 9,
-                Key = "hero_video_enabled",
-                DisplayName = "Enable Hero Video Background",
-                Value = "false",
-                Description = "Show a video instead of a static image in the hero section",
-                Type = SettingType.Boolean,
-                Category = "Content",
-                SortOrder = 8,
-                IsRequired = false,
-                IsActive = true,
-                IsPublic = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            },
-            new SiteSetting
-            {
-                Id = 10,
-                Key = "hero_video_url",
-                DisplayName = "Hero Video URL",
-                Value = "",
-                Description = "YouTube URL or uploaded MP4 path for the hero background video",
-                Type = SettingType.Url,
-                Category = "Content",
-                SortOrder = 9,
-                IsRequired = false,
-                IsActive = true,
-                IsPublic = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            },
-            new SiteSetting
-            {
-                Id = 11,
-                Key = "hero_video_start",
-                DisplayName = "Hero Video Start Time",
-                Value = "0",
-                Description = "Number of seconds to skip at the start of the video",
-                Type = SettingType.Number,
-                Category = "Content",
-                SortOrder = 10,
-                IsRequired = false,
-                IsActive = true,
-                IsPublic = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            },
-            new SiteSetting
-            {
                 Id = 8,
                 Key = "allow_user_registration",
                 DisplayName = "Allow User Registration",

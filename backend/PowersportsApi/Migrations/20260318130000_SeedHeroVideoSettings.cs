@@ -11,24 +11,24 @@ namespace PowersportsApi.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.InsertData(
-                table: "SiteSettings",
-                columns: new[] { "Id", "Key", "DisplayName", "Value", "Description", "Type", "Category", "SortOrder", "IsRequired", "IsActive", "IsPublic", "CreatedAt", "UpdatedAt" },
-                values: new object[,]
-                {
-                    { 9,  "hero_video_enabled", "Enable Hero Video Background", "false", "Show a video instead of a static image in the hero section",              7, "Content", 8,  false, true, true, new DateTime(2026, 3, 18, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 3, 18, 0, 0, 0, DateTimeKind.Utc) },
-                    { 10, "hero_video_url",     "Hero Video URL",               "",      "YouTube URL or uploaded MP4 path for the hero background video",           5, "Content", 9,  false, true, true, new DateTime(2026, 3, 18, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 3, 18, 0, 0, 0, DateTimeKind.Utc) },
-                    { 11, "hero_video_start",   "Hero Video Start Time",        "0",     "Number of seconds to skip at the start of the video",                     8, "Content", 10, false, true, true, new DateTime(2026, 3, 18, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 3, 18, 0, 0, 0, DateTimeKind.Utc) }
-                });
+            // Use INSERT IGNORE so this is safe on both fresh installs and existing
+            // databases where these settings may already exist (created via admin panel).
+            migrationBuilder.Sql(@"
+                INSERT IGNORE INTO `SiteSettings` (`Key`, `DisplayName`, `Value`, `Description`, `Type`, `Category`, `SortOrder`, `IsRequired`, `IsActive`, `IsPublic`, `CreatedAt`, `UpdatedAt`)
+                VALUES
+                    ('hero_video_enabled', 'Enable Hero Video Background', 'false', 'Show a video instead of a static image in the hero section', 7, 'Content', 8, 0, 1, 1, '2026-03-18 00:00:00', '2026-03-18 00:00:00'),
+                    ('hero_video_url',     'Hero Video URL',               '',      'YouTube URL or uploaded MP4 path for the hero background video', 5, 'Content', 9, 0, 1, 1, '2026-03-18 00:00:00', '2026-03-18 00:00:00'),
+                    ('hero_video_start',   'Hero Video Start Time',        '0',     'Number of seconds to skip at the start of the video', 8, 'Content', 10, 0, 1, 1, '2026-03-18 00:00:00', '2026-03-18 00:00:00');
+            ");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DeleteData(
-                table: "SiteSettings",
-                keyColumn: "Id",
-                keyValues: new object[] { 9, 10, 11 });
+            migrationBuilder.Sql(@"
+                DELETE FROM `SiteSettings`
+                WHERE `Key` IN ('hero_video_enabled', 'hero_video_url', 'hero_video_start');
+            ");
         }
     }
 }
