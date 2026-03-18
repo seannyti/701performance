@@ -39,8 +39,9 @@
             </router-link>
           </li>
           <li class="nav-item">
-            <router-link to="/live-chat" class="nav-link" active-class="active">
-              💬 Live Chat
+            <router-link to="/live-chat" class="nav-link nav-link--badged" active-class="active">
+              <span>💬 Live Chat</span>
+              <span v-if="chatBadge > 0" class="nav-badge">{{ chatBadge > 99 ? '99+' : chatBadge }}</span>
             </router-link>
           </li>
           <li class="nav-item">
@@ -86,9 +87,35 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import axios from 'axios'
 
 const authStore = useAuthStore()
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5226'
+const chatBadge = ref(0)
+let chatPollTimer: ReturnType<typeof setInterval> | null = null
+
+async function loadChatBadge() {
+  try {
+    const res = await axios.get(`${API_URL}/api/v1/chat/sessions`, {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+    chatBadge.value = (res.data as { status: string }[]).filter(
+      s => s.status === 'Waiting' || s.status === 'Active'
+    ).length
+  } catch { chatBadge.value = 0 }
+}
+
+onMounted(() => {
+  loadChatBadge()
+  chatPollTimer = setInterval(loadChatBadge, 30_000)
+})
+
+onUnmounted(() => {
+  if (chatPollTimer) clearInterval(chatPollTimer)
+})
 
 const handleLogout = () => {
   authStore.logout()

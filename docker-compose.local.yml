@@ -30,6 +30,9 @@ services:
       - DatabaseProvider=MySQL
       - ConnectionStrings__DefaultConnection=Server=db;Port=3306;Database=defaultdb;User=akmadmin;Password=${LOCAL_DB_PASSWORD};
       - JwtSettings__SecretKey=${LOCAL_JWT_SECRET}
+      - Linode__ApiToken=${LINODE_API_TOKEN}
+      - Linode__Nodes__0__Id=${LINODE_NODE_0_ID}
+      - Linode__Nodes__0__Label=${LINODE_NODE_0_LABEL}
     volumes:
       - uploads:/app/wwwroot/uploads
       - backups:/app/backups
@@ -43,7 +46,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        VITE_API_URL: http://localhost:5226
+        VITE_API_URL: http://localhost
         VITE_ADMIN_URL: http://localhost:81
     ports:
       - "80:80"
@@ -56,7 +59,7 @@ services:
       context: .
       dockerfile: Dockerfile.admin
       args:
-        VITE_API_URL: http://localhost:5226
+        VITE_API_URL: http://localhost:81
     ports:
       - "81:80"
     depends_on:

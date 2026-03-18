@@ -17,9 +17,6 @@
     <!-- Footer component - hidden during maintenance and on special pages -->
     <Footer v-if="!hideHeaderFooter" />
 
-    <!-- Music player - floating bottom-right, controlled via Admin → Settings → Music -->
-    <MusicPlayer />
-
     <!-- Live chat widget - floating, hidden on special pages and for admins -->
     <ChatWidget />
 
@@ -51,11 +48,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Header from './components/Header.vue';
 import Footer from './components/Footer.vue';
-import MusicPlayer from './components/MusicPlayer.vue';
 import ChatWidget from './components/ChatWidget.vue';
 import AdminChatBell from './components/AdminChatBell.vue';
 import { useTheme } from './composables/useTheme';
@@ -74,23 +70,60 @@ const hideHeaderFooter = computed(() => {
   const specialPages = ['/maintenance', '/login', '/signup']
   return specialPages.includes(route.path)
 })
+
+// ── Visitor heartbeat ───────────────────────────────────────
+// Lets the admin dashboard show a live visitor count. Pings every 60s.
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5226'
+
+function getVisitorSessionId(): string {
+  const key = 'visitor_session_id'
+  let id = sessionStorage.getItem(key)
+  if (!id) {
+    id = crypto.randomUUID()
+    sessionStorage.setItem(key, id)
+  }
+  return id
+}
+
+async function sendHeartbeat() {
+  try {
+    await fetch(`${API_URL}/api/v1/visitors/heartbeat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: getVisitorSessionId() }),
+      keepalive: true
+    })
+  } catch { /* silent */ }
+}
+
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  sendHeartbeat()
+  heartbeatTimer = setInterval(sendHeartbeat, 60_000)
+})
+
+onUnmounted(() => {
+  if (heartbeatTimer) clearInterval(heartbeatTimer)
+})
 </script>
 
 <style>
 /* Global styles with theme variables */
 :root {
   /* Default values - will be overridden by theme */
-  --color-primary: #6366f1;
-  --color-secondary: #ec4899;
-  --color-accent: #f59e0b;
-  --color-bg: #ffffff;
-  --color-text-primary: #111827;
-  --font-body: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --color-primary: #CC0000;
+  --color-secondary: #9A9A9A;
+  --color-accent: #FF3333;
+  --color-bg: #0A0A0A;
+  --color-text-primary: #FFFFFF;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-heading: 'Rajdhani', 'Inter', system-ui, sans-serif;
   --font-size-base: 16px;
   --line-height-body: 1.6;
-  --card-radius: 12px;
-  --button-radius: 6px;
-  --transition-duration: 200ms;
+  --card-radius: 6px;
+  --button-radius: 3px;
+  --transition-duration: 250ms;
 }
 
 * {

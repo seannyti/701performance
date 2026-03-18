@@ -102,6 +102,9 @@
       </div>
     </div>
 
+    <!-- Music Player Bar -->
+    <MusicPlayer />
+
     <!-- Bottom Bar -->
     <div class="footer-bottom">
       <div class="footer-container">
@@ -125,6 +128,7 @@
 import { computed } from 'vue';
 import { useSettings } from '@/composables/useSettings';
 import { getMediaUrl } from '@/utils/api-config';
+import MusicPlayer from './MusicPlayer.vue';
 
 // Get current year for copyright
 const currentYear = computed(() => new Date().getFullYear());

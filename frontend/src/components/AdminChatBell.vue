@@ -92,7 +92,7 @@ onUnmounted(async () => {
 .admin-bell {
   position: fixed;
   bottom: 1.25rem;
-  left: 1.5rem;
+  right: 1.5rem;
   z-index: 10001;
   width: 3.25rem;
   height: 3.25rem;

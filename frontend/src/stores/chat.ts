@@ -67,6 +67,15 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  // Suppress noisy reconnect errors from flooding the console.
+  // SignalR logs each failed negotiation attempt at Error level — we only
+  // want to surface Critical-level messages (true hub faults, not transient 502s).
+  const silentLogger: signalR.ILogger = {
+    log(level: signalR.LogLevel, message: string) {
+      if (level >= signalR.LogLevel.Critical) console.error('[SignalR]', message)
+    }
+  }
+
   function buildConnection(): signalR.HubConnection {
     const builder = new signalR.HubConnectionBuilder()
       .withUrl(HUB_URL, {
@@ -74,7 +83,7 @@ export const useChatStore = defineStore('chat', () => {
         transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling
       })
       .withAutomaticReconnect()
-      .configureLogging(signalR.LogLevel.Warning)
+      .configureLogging(silentLogger)
       .build()
 
     builder.on('ReceiveMessage', (msg: ChatMessage) => {
@@ -188,6 +197,7 @@ export const useChatStore = defineStore('chat', () => {
     sessionToken.value = null
     messages.value = []
     status.value = 'idle'
+    isOpen.value = false
   }
 
   return {

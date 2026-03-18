@@ -41,6 +41,8 @@ public class Program
         });
 
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddHttpClient();
+        builder.Services.AddSingleton<VisitorTracker>();
         builder.Services.AddScoped<ProductService>();
         builder.Services.AddScoped<AuthService>();
         builder.Services.AddScoped<FileService>();
@@ -133,35 +135,37 @@ public class Program
         });
 
         // Built-in ASP.NET Core rate limiting — survives restarts and is scoped per named policy.
-        // The custom in-memory RateLimitingMiddleware is replaced by this.
         builder.Services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            // Per-IP limit for auth endpoints (login / register / refresh).
-            // 20 per IP per minute is strict enough to block brute-force while allowing
-            // normal use (silent refresh, heartbeat, quick page reloads during testing).
+            // Auth endpoints — strict fixed window to block brute-force attacks.
+            // 30 attempts per IP per 5 minutes covers: login, token refresh, register.
             options.AddPolicy("auth", httpContext =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                     factory: _ => new FixedWindowRateLimiterOptions
                     {
-                        Window = TimeSpan.FromMinutes(1),
-                        PermitLimit = 20,
+                        Window = TimeSpan.FromMinutes(5),
+                        PermitLimit = 30,
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                         QueueLimit = 0
                     }));
 
-            // General API limit — per IP, 120 requests per minute
+            // General API — sliding window so bursts (page loads, tab opens) don't
+            // immediately 429. 600 req/min per IP = 10/sec sustained; a typical user
+            // browsing 5 pages/min with 10 API calls each uses ~50 req/min.
+            // Queue of 20 absorbs brief spikes without returning errors.
             options.AddPolicy("api", httpContext =>
-                RateLimitPartition.GetFixedWindowLimiter(
+                RateLimitPartition.GetSlidingWindowLimiter(
                     partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    factory: _ => new FixedWindowRateLimiterOptions
+                    factory: _ => new SlidingWindowRateLimiterOptions
                     {
                         Window = TimeSpan.FromMinutes(1),
-                        PermitLimit = 120,
+                        SegmentsPerWindow = 6,          // 10-second segments
+                        PermitLimit = 600,
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        QueueLimit = 0
+                        QueueLimit = 20
                     }));
         });
 
@@ -1290,6 +1294,177 @@ public class Program
         .Produces(200)
         .RequireAuthorization("AdminOnly");
 
+        // GET /api/v1/admin/dashboard/linode-stats
+        dashboardRoutes.MapGet("/linode-stats", async (IConfiguration config, IHttpClientFactory httpClientFactory) =>
+        {
+            var token = config["Linode:ApiToken"];
+            if (string.IsNullOrEmpty(token))
+                return Results.Ok(new { configured = false, nodes = Array.Empty<object>() });
+
+            var nodesSection = config.GetSection("Linode:Nodes");
+            var allNodes = nodesSection.GetChildren()
+                .Select(n => new { Id = n["Id"] ?? "0", Label = n["Label"] ?? "Unknown" })
+                .Where(n => n.Id != "0" && !string.IsNullOrEmpty(n.Id))
+                .ToList();
+
+            if (allNodes.Count == 0)
+                return Results.Ok(new { configured = false, nodes = Array.Empty<object>() });
+
+            static double[] ExtractSeries(JsonElement data, string key)
+            {
+                if (!data.TryGetProperty(key, out var arr)) return Array.Empty<double>();
+                return Enumerable.Range(0, arr.GetArrayLength())
+                    .Select(i => arr[i][1].GetDouble())
+                    .ToArray();
+            }
+
+            var client = httpClientFactory.CreateClient();
+            var results = await Task.WhenAll(allNodes.Select(async node =>
+            {
+                try
+                {
+                    var statsReq = new HttpRequestMessage(HttpMethod.Get, $"https://api.linode.com/v4/linode/instances/{node.Id}/stats");
+                    statsReq.Headers.Add("Authorization", $"Bearer {token}");
+                    var infoReq = new HttpRequestMessage(HttpMethod.Get, $"https://api.linode.com/v4/linode/instances/{node.Id}");
+                    infoReq.Headers.Add("Authorization", $"Bearer {token}");
+
+                    var statsTask = client.SendAsync(statsReq);
+                    var infoTask = client.SendAsync(infoReq);
+                    await Task.WhenAll(statsTask, infoTask);
+
+                    var statsResp = statsTask.Result;
+                    var infoResp = infoTask.Result;
+
+                    if (!statsResp.IsSuccessStatusCode)
+                        return (object)new { id = node.Id, label = node.Label, error = true };
+
+                    var statsData = await statsResp.Content.ReadFromJsonAsync<JsonElement>();
+                    var seriesData = statsData.GetProperty("data");
+
+                    var vcpus = 1;
+                    var ram = 0;
+                    if (infoResp.IsSuccessStatusCode)
+                    {
+                        var infoData = await infoResp.Content.ReadFromJsonAsync<JsonElement>();
+                        vcpus = infoData.GetProperty("specs").GetProperty("vcpus").GetInt32();
+                        ram = infoData.GetProperty("specs").GetProperty("memory").GetInt32();
+                    }
+
+                    // CPU: Linode reports % per single core; normalize by vcpus
+                    var cpuRaw = ExtractSeries(seriesData, "cpu");
+                    var cpu = cpuRaw.Select(v => Math.Round(v / vcpus, 2)).ToArray();
+
+                    // Disk I/O
+                    var io = new
+                    {
+                        read  = ExtractSeries(seriesData.GetProperty("io"), "io"),
+                        swap  = ExtractSeries(seriesData.GetProperty("io"), "swap")
+                    };
+
+                    // Network IPv4
+                    var netv4Data = seriesData.GetProperty("netv4");
+                    var netv4 = new
+                    {
+                        publicIn  = ExtractSeries(netv4Data, "in"),
+                        publicOut = ExtractSeries(netv4Data, "out"),
+                        privateIn  = ExtractSeries(netv4Data, "private_in"),
+                        privateOut = ExtractSeries(netv4Data, "private_out")
+                    };
+
+                    // Network IPv6
+                    var netv6Data = seriesData.GetProperty("netv6");
+                    var netv6 = new
+                    {
+                        publicIn  = ExtractSeries(netv6Data, "in"),
+                        publicOut = ExtractSeries(netv6Data, "out"),
+                        privateIn  = ExtractSeries(netv6Data, "private_in"),
+                        privateOut = ExtractSeries(netv6Data, "private_out")
+                    };
+
+                    // Current values (last point)
+                    var cpuCurrent  = cpu.Length  > 0 ? cpu[^1]  : 0.0;
+                    var cpuMax      = cpu.Length  > 0 ? Math.Round(cpu.Max(), 2) : 0.0;
+                    var cpuAvg      = cpu.Length  > 0 ? Math.Round(cpu.Average(), 2) : 0.0;
+
+                    return (object)new
+                    {
+                        id = node.Id, label = node.Label, error = false,
+                        vcpus, ram,
+                        cpuCurrent, cpuMax, cpuAvg,
+                        series = new { cpu, io, netv4, netv6 }
+                    };
+                }
+                catch
+                {
+                    return (object)new { id = node.Id, label = node.Label, error = true };
+                }
+            }));
+
+            return Results.Ok(new { configured = true, nodes = results });
+        })
+        .WithName("GetLinodeStats")
+        .WithSummary("Get Linode server statistics with time series (Admin+ only)")
+        .Produces(200)
+        .RequireAuthorization("AdminOnly");
+
+        // GET /api/v1/admin/dashboard/weather — proxy wttr.in so the browser avoids CORS
+        dashboardRoutes.MapGet("/weather", async (IHttpClientFactory httpClientFactory) =>
+        {
+            try
+            {
+                var client = httpClientFactory.CreateClient();
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
+                client.DefaultRequestHeaders.Add("User-Agent", "PowersportsAdmin/1.0");
+                var resp = await client.GetAsync("https://wttr.in/?format=j1");
+                if (!resp.IsSuccessStatusCode)
+                    return Results.Ok(new { ok = false });
+                var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
+                // wttr.in wraps the payload under a "data" key
+                var root = json.TryGetProperty("data", out var d) ? d : json;
+                var c = root.GetProperty("current_condition")[0];
+                var area = root.TryGetProperty("nearest_area", out var na) && na.GetArrayLength() > 0
+                    ? na[0].TryGetProperty("areaName", out var an) && an.GetArrayLength() > 0
+                        ? an[0].GetProperty("value").GetString() ?? ""
+                        : ""
+                    : "";
+                return Results.Ok(new
+                {
+                    ok = true,
+                    tempF      = int.Parse(c.GetProperty("temp_F").GetString() ?? "0"),
+                    feelsLikeF = int.Parse(c.GetProperty("FeelsLikeF").GetString() ?? "0"),
+                    desc       = c.GetProperty("weatherDesc")[0].GetProperty("value").GetString() ?? "",
+                    humidity   = int.Parse(c.GetProperty("humidity").GetString() ?? "0"),
+                    windMph    = int.Parse(c.GetProperty("windspeedMiles").GetString() ?? "0"),
+                    location   = area
+                });
+            }
+            catch { return Results.Ok(new { ok = false }); }
+        })
+        .WithName("GetWeather")
+        .WithSummary("Proxy weather data from wttr.in (Admin+ only)")
+        .Produces(200)
+        .RequireAuthorization("AdminOnly");
+
+        // POST /api/v1/visitors/heartbeat — public; lets the frontend register an active visitor
+        v1Routes.MapPost("/visitors/heartbeat", (VisitorHeartbeatRequest req, VisitorTracker tracker) =>
+        {
+            if (!string.IsNullOrWhiteSpace(req.SessionId))
+                tracker.Heartbeat(req.SessionId);
+            return Results.Ok();
+        })
+        .WithName("VisitorHeartbeat")
+        .WithSummary("Register or refresh an active visitor session")
+        .Produces(200);
+
+        // GET /api/v1/admin/visitors — admin-only; returns count of visitors active in the last 2 minutes
+        v1Routes.MapGet("/admin/visitors", (VisitorTracker tracker) =>
+            Results.Ok(new { active = tracker.ActiveCount() })
+        )
+        .WithName("GetVisitorCount")
+        .WithSummary("Get live visitor count (Admin+ only)")
+        .Produces(200)
+        .RequireAuthorization("AdminOnly");
+
         // Public Site Settings endpoint — only returns settings explicitly marked IsPublic.
         // Credentials (SMTP, etc.) and server-config keys must never be marked IsPublic.
         v1Routes.MapGet("/settings", async (PowersportsDbContext context) =>
@@ -1420,6 +1595,7 @@ public class Program
                     SortOrder = request.SortOrder,
                     IsRequired = request.IsRequired,
                     IsActive = true,
+                    IsPublic = request.Category is not ("Email" or "Advanced" or "Security" or "System"),
                     LastModifiedBy = currentUserId,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
@@ -1718,6 +1894,104 @@ public class Program
         .Produces(200)
         .Produces(400)
         .RequireAuthorization("SuperAdminOnly");
+
+        // ── Theme endpoints ───────────────────────────────────────────────────
+        // Public GET — returns the consolidated JSON theme config, or falls back
+        // to all individual theme_* key/value pairs for backward compatibility.
+        v1Routes.MapGet("/theme", async (PowersportsDbContext context) =>
+        {
+            var themeConfig = await context.SiteSettings
+                .Where(s => s.Key == "theme_config" && s.IsActive)
+                .FirstOrDefaultAsync();
+
+            if (themeConfig != null)
+            {
+                var parsed = JsonSerializer.Deserialize<object>(themeConfig.Value);
+                return Results.Ok(parsed);
+            }
+
+            // Fallback: return individual theme_* settings as a flat object
+            var themeSettings = await context.SiteSettings
+                .Where(s => s.Key.StartsWith("theme_") && s.IsActive && s.IsPublic)
+                .Select(s => new { s.Key, s.Value })
+                .ToListAsync();
+
+            var dict = themeSettings.ToDictionary(s => s.Key, s => (object)s.Value);
+            return Results.Ok(dict);
+        })
+        .WithName("GetTheme")
+        .WithSummary("Get current theme configuration")
+        .Produces(200);
+
+        // Admin PUT — saves entire theme as a single JSON blob and broadcasts via SignalR.
+        v1Routes.MapPut("/admin/theme", async (
+            HttpContext httpContext,
+            PowersportsDbContext context,
+            IHubContext<PowersportsApi.Hubs.ChatHub> hubContext) =>
+        {
+            try
+            {
+                using var reader = new StreamReader(httpContext.Request.Body);
+                var body = await reader.ReadToEndAsync();
+
+                if (string.IsNullOrWhiteSpace(body))
+                    return Results.BadRequest(new { message = "Theme config is required." });
+
+                // Validate JSON
+                var parsed = JsonSerializer.Deserialize<object>(body);
+
+                string? currentUserIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                int currentUserId = currentUserIdClaim != null && int.TryParse(currentUserIdClaim, out int uid) ? uid : 1;
+
+                var existing = await context.SiteSettings.FirstOrDefaultAsync(s => s.Key == "theme_config");
+                if (existing != null)
+                {
+                    existing.Value = body;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    existing.LastModifiedBy = currentUserId;
+                }
+                else
+                {
+                    context.SiteSettings.Add(new SiteSetting
+                    {
+                        Key = "theme_config",
+                        DisplayName = "Theme Configuration",
+                        Value = body,
+                        Description = "Consolidated theme settings as JSON",
+                        Type = SettingType.Text,
+                        Category = "Theme",
+                        SortOrder = 0,
+                        IsRequired = false,
+                        IsActive = true,
+                        IsPublic = true,
+                        LastModifiedBy = currentUserId,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+
+                await context.SaveChangesAsync();
+
+                // Broadcast to all connected clients — frontend applies instantly
+                await hubContext.Clients.All.SendAsync("ThemeUpdated", parsed);
+
+                return Results.Ok(new { message = "Theme saved and broadcast successfully." });
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest(new { message = "Invalid JSON in theme config." });
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "Failed to save theme");
+                return Results.BadRequest(new { message = "Failed to save theme." });
+            }
+        })
+        .WithName("UpdateTheme")
+        .WithSummary("Save theme config and broadcast via SignalR (Admin+ only)")
+        .Produces(200)
+        .Produces(400)
+        .RequireAuthorization("AdminOnly");
 
         // Backup & Restore Management
         var backupRoutes = v1Routes.MapGroup("/admin/backup").WithTags("Backup & Restore");
@@ -4729,6 +5003,31 @@ public class Program
             }
     }
 
+}
+
+// ── Visitor tracking ─────────────────────────────────────────────────────────
+
+public record VisitorHeartbeatRequest(string SessionId);
+
+/// <summary>Singleton that tracks active frontend sessions using in-memory heartbeat timestamps.</summary>
+public class VisitorTracker
+{
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _sessions = new();
+
+    public void Heartbeat(string sessionId)
+    {
+        _sessions[sessionId] = DateTime.UtcNow;
+        var cutoff = DateTime.UtcNow.AddMinutes(-2);
+        foreach (var key in _sessions.Keys.ToList())
+            if (_sessions.TryGetValue(key, out var ts) && ts < cutoff)
+                _sessions.TryRemove(key, out _);
+    }
+
+    public int ActiveCount()
+    {
+        var cutoff = DateTime.UtcNow.AddMinutes(-2);
+        return _sessions.Count(kvp => kvp.Value >= cutoff);
+    }
 }
 
 // Request DTOs

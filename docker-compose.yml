@@ -11,6 +11,9 @@ services:
       - DatabaseProvider=MySQL
       - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
       - JwtSettings__SecretKey=${JWT_SECRET}
+      - Linode__ApiToken=${LINODE_API_TOKEN}
+      - Linode__Nodes__0__Id=${LINODE_NODE_0_ID}
+      - Linode__Nodes__0__Label=${LINODE_NODE_0_LABEL}
     volumes:
       - uploads:/app/wwwroot/uploads
       - backups:/app/backups

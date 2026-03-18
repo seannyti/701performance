@@ -117,6 +117,11 @@ const { openChat, closeChat, restoreSession, startSession, sendMessage, endSessi
 
 onMounted(() => { restoreSession() })
 
+// When the user logs out, clear the chat session and close the panel
+watch(() => authStore.isAuthenticated, (isAuth, wasAuth) => {
+  if (wasAuth && !isAuth) endSession()
+})
+
 // Hide on maintenance / login / signup pages, and for admin users (they get the AdminChatBell instead)
 const hideOnPage = computed(() => {
   const hidden = ['/maintenance', '/login', '/signup']
@@ -181,11 +186,11 @@ function restart() {
 .chat-widget {
   position: fixed;
   bottom: 1.25rem;
-  left: 1.5rem;
+  right: 1.5rem;
   z-index: 10001;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 0.75rem;
 }
 
