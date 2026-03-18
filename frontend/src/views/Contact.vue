@@ -174,7 +174,7 @@ const contactReasons = computed(() => {
 });
 
 // Form data
-const form = reactive<ContactForm & { subject: string }>({
+const form = reactive<ContactForm>({
   name: '',
   email: '',
   message: '',
@@ -190,6 +190,7 @@ const submitError = ref<string | null>(null);
 const errors = reactive({
   name: '',
   email: '',
+  subject: '',
   message: ''
 });
 
@@ -213,13 +214,20 @@ const validateMessage = (message: string): string => {
   return '';
 };
 
+const validateSubject = (subject: string | undefined): string => {
+  if (!subject || !subject.trim()) return ''; // subject is optional
+  if (subject.trim().length < 2) return 'Subject must be at least 2 characters';
+  return '';
+};
+
 // Form validation
 const validateForm = (): boolean => {
   errors.name = validateName(form.name);
   errors.email = validateEmail(form.email);
+  errors.subject = validateSubject(form.subject);
   errors.message = validateMessage(form.message);
 
-  return !errors.name && !errors.email && !errors.message;
+  return !errors.name && !errors.email && !errors.subject && !errors.message;
 };
 
 // Reset form
@@ -230,6 +238,7 @@ const resetForm = () => {
   form.subject = '';
   errors.name = '';
   errors.email = '';
+  errors.subject = '';
   errors.message = '';
 };
 

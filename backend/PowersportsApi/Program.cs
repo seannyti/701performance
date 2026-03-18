@@ -1,5 +1,6 @@
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -77,6 +78,22 @@ public class Program
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.Zero
             };
+
+            // SignalR WebSocket connections cannot send custom headers, so the JS client
+            // passes the JWT as ?access_token=... in the query string during the hub negotiate.
+            options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    if (!string.IsNullOrEmpty(accessToken) &&
+                        context.HttpContext.Request.Path.StartsWithSegments("/hubs/chat"))
+                    {
+                        context.Token = accessToken;
+                    }
+                    return Task.CompletedTask;
+                }
+            };
         });
 
         builder.Services.AddAuthorization(options =>
@@ -100,7 +117,7 @@ public class Program
             {
                 policy.WithOrigins(allowedOrigins)
                       .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
-                      .WithHeaders("Content-Type", "Authorization", "X-Requested-With")
+                      .AllowAnyHeader()   // SignalR negotiate requires this
                       .AllowCredentials()
                       .SetPreflightMaxAge(TimeSpan.FromHours(1));
             });
@@ -121,24 +138,36 @@ public class Program
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            // Strict limit for auth endpoints (login / register / refresh)
-            options.AddFixedWindowLimiter("auth", opt =>
-            {
-                opt.Window = TimeSpan.FromMinutes(1);
-                opt.PermitLimit = 5;
-                opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-                opt.QueueLimit = 0;
-            });
+            // Per-IP limit for auth endpoints (login / register / refresh).
+            // 20 per IP per minute is strict enough to block brute-force while allowing
+            // normal use (silent refresh, heartbeat, quick page reloads during testing).
+            options.AddPolicy("auth", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        Window = TimeSpan.FromMinutes(1),
+                        PermitLimit = 20,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 0
+                    }));
 
-            // General API limit
-            options.AddFixedWindowLimiter("api", opt =>
-            {
-                opt.Window = TimeSpan.FromMinutes(1);
-                opt.PermitLimit = 60;
-                opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-                opt.QueueLimit = 0;
-            });
+            // General API limit — per IP, 120 requests per minute
+            options.AddPolicy("api", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        Window = TimeSpan.FromMinutes(1),
+                        PermitLimit = 120,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 0
+                    }));
         });
+
+        builder.Services.AddMemoryCache();
+        builder.Services.AddResponseCompression(options => options.EnableForHttps = true);
+        builder.Services.AddSignalR();
 
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(c =>
@@ -153,16 +182,30 @@ public class Program
 
         var app = builder.Build();
 
+        // Read enable_compression before middleware setup so it can gate UseResponseCompression.
+        // Defaults to true on first run (tables not yet created) or if setting is missing.
+        bool enableResponseCompression = true;
+
         // Initialize system media sections
         using (var scope = app.Services.CreateScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<PowersportsDbContext>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            
+
             try
             {
                 // Ensure database is created and migrations are applied
                 await context.Database.MigrateAsync();
+
+                try
+                {
+                    var compressionVal = await context.SiteSettings
+                        .Where(s => s.Key == "enable_compression")
+                        .Select(s => s.Value)
+                        .FirstOrDefaultAsync();
+                    enableResponseCompression = compressionVal?.ToLowerInvariant() != "false";
+                }
+                catch { /* table not yet seeded — keep default true */ }
                 
                 // Create system sections if they don't exist
                 var systemSections = new[]
@@ -221,15 +264,21 @@ public class Program
             app.UseHttpsRedirection();
         }
 
+        if (enableResponseCompression)
+            app.UseResponseCompression();
+
         app.UseMiddleware<PowersportsApi.Middleware.SecurityHeadersMiddleware>();
         app.UseMiddleware<PowersportsApi.Middleware.RequestValidationMiddleware>();
+        app.UseCors("AllowFrontend");   // MUST be before UseRateLimiter — 429 rejections need CORS headers
+        app.UseMiddleware<PowersportsApi.Middleware.MaintenanceModeMiddleware>(); // After CORS so 503s have CORS headers
         app.UseRateLimiter();
 
-        app.UseCors("AllowFrontend");
         app.UseStaticFiles();
 
         app.UseAuthentication();
         app.UseAuthorization();
+
+        app.MapHub<PowersportsApi.Hubs.ChatHub>("/hubs/chat").RequireCors("AllowFrontend");
 
         // Reusable MiniValidation endpoint filter — validates the first bound argument of type T.
         // Apply with .AddEndpointFilter(Validate<TRequest>) on any route that binds a request body.
@@ -244,11 +293,15 @@ public class Program
         var v1Routes = app.MapGroup("/api/v1").WithTags("API v1").RequireRateLimiting("api");
         var productRoutes = v1Routes.MapGroup("/products").WithTags("Products");
 
-        productRoutes.MapGet("/", async (ProductService productService, int page = 1, int pageSize = 100) =>
+        productRoutes.MapGet("/", async (ProductService productService, int page = 1, int pageSize = 100, bool includeInactive = false) =>
         {
             pageSize = Math.Min(pageSize, 200);
             page = Math.Max(page, 1);
             var allProducts = await productService.GetAllProductsAsync();
+            if (!includeInactive)
+            {
+                allProducts = allProducts.Where(p => p.IsActive).ToList();
+            }
             var totalCount = allProducts.Count;
             var products = allProducts.Skip((page - 1) * pageSize).Take(pageSize).ToList();
             var productsDto = products.Select(p => p.ToProductDto());
@@ -590,7 +643,8 @@ public class Program
             if (string.IsNullOrWhiteSpace(token))
                 return Results.BadRequest(new { message = "Verification token is required." });
 
-            var user = await context.Users.FirstOrDefaultAsync(u => u.EmailVerificationToken == token);
+            var tokenHash = AuthService.HashVerificationToken(token);
+            var user = await context.Users.FirstOrDefaultAsync(u => u.EmailVerificationToken == tokenHash);
             if (user == null)
                 return Results.BadRequest(new { message = "Invalid verification token." });
 
@@ -610,27 +664,38 @@ public class Program
         .Produces(200)
         .Produces(400);
 
-        authRoutes.MapPost("/resend-verification", async (ResendVerificationRequest request, PowersportsDbContext context, EmailService emailService) =>
+        authRoutes.MapPost("/resend-verification", async (ResendVerificationRequest request, PowersportsDbContext context, EmailService emailService, ILogger<Program> logger) =>
         {
+            const string genericOk = "If that email exists and is unverified, a new verification email has been sent.";
+
             var user = await context.Users.FirstOrDefaultAsync(u => u.Email == request.Email.ToLowerInvariant());
             if (user == null || user.IsEmailVerified)
-                return Results.Ok(new { message = "If that email exists and is unverified, a new verification email has been sent." });
+                return Results.Ok(new { message = genericOk });
 
-            var newToken = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(48));
-            user.EmailVerificationToken = newToken;
+            // Per-user cooldown: allow at most one resend every 60 seconds
+            if (user.VerificationEmailLastSentAt.HasValue &&
+                DateTime.UtcNow - user.VerificationEmailLastSentAt.Value < TimeSpan.FromSeconds(60))
+                return Results.Ok(new { message = genericOk });
+
+            var rawToken = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(48));
+            user.EmailVerificationToken = AuthService.HashVerificationToken(rawToken);
             user.EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24);
+            user.VerificationEmailLastSentAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
             await context.SaveChangesAsync();
 
             var siteUrl = await context.SiteSettings
                 .Where(s => s.Key == "site_url")
                 .Select(s => s.Value)
-                .FirstOrDefaultAsync() ?? "http://localhost:3000";
+                .FirstOrDefaultAsync();
+            if (string.IsNullOrEmpty(siteUrl))
+                logger.LogError("site_url is not configured in SiteSettings. Verification emails will contain broken links.");
+            siteUrl ??= "http://localhost:3000";
 
-            try { await emailService.SendVerificationEmailAsync(user.Email, user.FullName, newToken, siteUrl); }
-            catch { /* best-effort */ }
+            try { await emailService.SendVerificationEmailAsync(user.Email, user.FullName, rawToken, siteUrl); }
+            catch (Exception ex) { logger.LogWarning(ex, "Failed to send verification email to {Email}", user.Email); }
 
-            return Results.Ok(new { message = "If that email exists and is unverified, a new verification email has been sent." });
+            return Results.Ok(new { message = genericOk });
         })
         .WithName("ResendVerification")
         .WithSummary("Resend email verification link")
@@ -1183,6 +1248,11 @@ public class Program
             var totalAdmins         = await context.Users.CountAsync(u => u.IsActive && (u.Role == UserRole.Admin || u.Role == UserRole.SuperAdmin));
             var recentRegistrations = await context.Users.CountAsync(u => u.CreatedAt >= sevenDaysAgo);
 
+            var totalOrders   = await context.Orders.CountAsync();
+            var pendingOrders = await context.Orders.CountAsync(o => o.OrderStatus == OrderStatus.Pending);
+            var totalRevenue  = await context.Orders.SumAsync(o => (decimal?)o.TotalAmount) ?? 0m;
+            var newInquiries  = await context.ContactSubmissions.CountAsync(c => c.Status == ContactStatus.New);
+
             var recentUsers = await context.Users
                 .Where(u => u.IsActive)
                 .OrderByDescending(u => u.CreatedAt)
@@ -1206,6 +1276,10 @@ public class Program
                     totalUsers,
                     totalAdmins,
                     recentRegistrations,
+                    totalOrders,
+                    pendingOrders,
+                    totalRevenue,
+                    newInquiries,
                     recentUsers,
                     generatedAt = DateTime.UtcNow
                 }
@@ -1233,7 +1307,21 @@ public class Program
         // Public Contact Form endpoint
         v1Routes.MapPost("/contact", async (ContactRequest request, EmailService emailService, PowersportsDbContext context) =>
         {
-            // Save submission to database
+            // Attempt to send email first — if SMTP is disabled or misconfigured, report it to the user
+            var result = await emailService.SendContactFormEmailAsync(
+                request.Name,
+                request.Email,
+                request.Subject ?? "",
+                request.Message
+            );
+
+            if (!result.Success)
+            {
+                app.Logger.LogWarning("Contact form email failed: {Message}", result.Message);
+                return Results.Json(new { message = result.Message }, statusCode: 503);
+            }
+
+            // Email sent — now persist the submission
             var submission = new ContactSubmission
             {
                 Name = request.Name,
@@ -1243,31 +1331,17 @@ public class Program
                 Status = ContactStatus.New,
                 CreatedAt = DateTime.UtcNow
             };
-            
+
             context.ContactSubmissions.Add(submission);
             await context.SaveChangesAsync();
-            
-            // Send email notification
-            var result = await emailService.SendContactFormEmailAsync(
-                request.Name,
-                request.Email,
-                request.Subject ?? "",
-                request.Message
-            );
 
-            if (result.Success)
-            {
-                return Results.Ok(new { message = result.Message });
-            }
-            else
-            {
-                return Results.BadRequest(new { message = result.Message });
-            }
+            return Results.Ok(new { message = "Thank you for your message! We'll get back to you soon." });
         })
         .WithName("SubmitContactForm")
         .WithSummary("Submit a contact form message")
         .Produces(200)
-        .Produces(400);
+        .Produces(400)
+        .RequireRateLimiting("api");
 
         var settingsRoutes = v1Routes.MapGroup("/admin/settings").WithTags("Site Settings");
 
@@ -1430,7 +1504,7 @@ public class Program
                     
                     new SiteSetting { Key = "hero_title", DisplayName = "Homepage Hero Title", Value = "Premium Powersports Vehicles & Gear", Type = SettingType.Text, Category = "Homepage", SortOrder = 1 },
                     new SiteSetting { Key = "hero_subtitle", DisplayName = "Homepage Hero Subtitle", Value = "Discover our collection of ATVs, dirt bikes, UTVs, snowmobiles, and premium gear for all your outdoor adventures.", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 2 },
-                    new SiteSetting { Key = "home_features", DisplayName = "Why Choose Us Features", Value = "[{\"icon\":\"🛍️\",\"title\":\"Wide Selection\",\"description\":\"From ATVs to snowmobiles, we have everything you need for your next adventure.\"},{\"icon\":\"⭐\",\"title\":\"Quality Brands\",\"description\":\"We partner with top manufacturers to bring you reliable, high-performance vehicles.\"},{\"icon\":\"🔧\",\"title\":\"Expert Support\",\"description\":\"Our knowledgeable team is here to help you find the perfect gear for your needs.\"}]", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 3 },
+                    new SiteSetting { Key = "home_features", DisplayName = "Why Choose Us Features", Value = "[{\"icon\":\"🛍️\",\"title\":\"Wide Selection\",\"description\":\"From ATVs to snowmobiles, we have everything you need for your next adventure.\"},{\"icon\":\"⭐\",\"title\":\"Quality Brands\",\"description\":\"We partner with top manufacturers to bring you reliable, high-performance vehicles.\"},{\"icon\":\"🔧\",\"title\":\"Expert Support\",\"description\":\"Our knowledgeable team is here to help you find the perfect gear for your needs.\"},{\"icon\":\"🚚\",\"title\":\"Fast Delivery\",\"description\":\"Quick and reliable shipping so your gear arrives when you need it.\"},{\"icon\":\"💳\",\"title\":\"Flexible Financing\",\"description\":\"Affordable payment plans to help you get the ride you want without the wait.\"},{\"icon\":\"🏆\",\"title\":\"Warranty & After-Sale Service\",\"description\":\"Every vehicle comes backed by manufacturer warranty and our full after-sale support.\"}]", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 3 },
                     new SiteSetting { Key = "partner_brands", DisplayName = "Partner Brands", Value = "[{\"name\":\"Vitacci\",\"logoUrl\":\"\",\"website\":\"\"},{\"name\":\"Apollo\",\"logoUrl\":\"\",\"website\":\"\"},{\"name\":\"Moto Morini\",\"logoUrl\":\"\",\"website\":\"\"},{\"name\":\"BLP Moto\",\"logoUrl\":\"\",\"website\":\"\"},{\"name\":\"Icebear\",\"logoUrl\":\"\",\"website\":\"\"}]", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 4 },
                     new SiteSetting { Key = "brands_section_title", DisplayName = "Brands Section Title", Value = "Brands We Carry", Type = SettingType.Text, Category = "Homepage", SortOrder = 5 },
                     new SiteSetting { Key = "brands_section_subtitle", DisplayName = "Brands Section Subtitle", Value = "We partner with industry-leading manufacturers to bring you the best powersports vehicles", Type = SettingType.Text, Category = "Homepage", SortOrder = 6 },
@@ -1487,12 +1561,8 @@ public class Program
                     new SiteSetting { Key = "allow_guest_checkout", DisplayName = "Allow Guest Checkout", Value = "false", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 6 },
                     
                     new SiteSetting { Key = "image_quality", DisplayName = "Image Quality (%)", Value = "85", Type = SettingType.Number, Category = "Advanced", SortOrder = 7 },
-                    new SiteSetting { Key = "cache_duration", DisplayName = "Cache Duration (hours)", Value = "24", Type = SettingType.Number, Category = "Advanced", SortOrder = 8 },
-                    new SiteSetting { Key = "max_image_width", DisplayName = "Max Image Width (px)", Value = "1920", Type = SettingType.Number, Category = "Advanced", SortOrder = 9 },
-                    new SiteSetting { Key = "max_image_height", DisplayName = "Max Image Height (px)", Value = "1080", Type = SettingType.Number, Category = "Advanced", SortOrder = 10 },
-                    new SiteSetting { Key = "enable_image_optimization", DisplayName = "Enable Image Optimization", Value = "true", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 11 },
-                    new SiteSetting { Key = "enable_cdn", DisplayName = "Enable CDN", Value = "false", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 12 },
-                    new SiteSetting { Key = "enable_compression", DisplayName = "Enable Compression", Value = "true", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 13 },
+                    new SiteSetting { Key = "max_image_width", DisplayName = "Max Image Width (px)", Value = "1920", Type = SettingType.Number, Category = "Advanced", SortOrder = 8 },
+                    new SiteSetting { Key = "enable_compression", DisplayName = "Enable Compression", Value = "true", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 9 },
                     
                     new SiteSetting { Key = "enable_maintenance_mode", DisplayName = "Enable Maintenance Mode", Value = "false", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 14 },
 
@@ -1700,22 +1770,25 @@ public class Program
                     Name = string.IsNullOrWhiteSpace(rawName) ? (string?)null : rawName.Trim(),
                     SiteSettings = await context.SiteSettings.ToListAsync(),
                     Users = await context.Users.Select(u => new { u.Id, u.FirstName, u.LastName, u.Email, u.Role, u.CreatedAt }).ToListAsync(),
+                    MediaSections = await context.MediaSections.ToListAsync(),
+                    MediaFiles = await context.MediaFiles.ToListAsync(),
                     Categories = await context.Categories.ToListAsync(),
                     CategoryImages = await context.CategoryImages.ToListAsync(),
                     Products = await context.Products.ToListAsync(),
                     ProductImages = await context.ProductImages.ToListAsync(),
                     BackupDate = DateTime.UtcNow,
-                    RecordCount = await context.SiteSettings.CountAsync() + 
-                                 await context.Users.CountAsync() + 
-                                 await context.Categories.CountAsync() + 
+                    RecordCount = await context.SiteSettings.CountAsync() +
+                                 await context.Users.CountAsync() +
+                                 await context.Categories.CountAsync() +
                                  await context.Products.CountAsync()
                 };
                 
-                var jsonOptions = new JsonSerializerOptions 
-                { 
-                    WriteIndented = true
+                var jsonOptions = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles
                 };
-                
+
                 var jsonContent = JsonSerializer.Serialize(dbData, jsonOptions);
                 
                 // Save backup to file
@@ -1780,7 +1853,7 @@ public class Program
                         int rc = 0;
                         try
                         {
-                            Span<byte> header = stackalloc byte[512];
+                            byte[] header = new byte[512]; // heap allocation — stackalloc inside a loop risks stack overflow
                             using var fs = new FileStream(fp, FileMode.Open, FileAccess.Read, FileShare.Read);
                             var bytesRead = fs.Read(header);
                             var partial = System.Text.Encoding.UTF8.GetString(header[..bytesRead]);
@@ -1891,27 +1964,29 @@ public class Program
 
                 try
                 {
-                    // Clear existing data (except super admin user)
-                    context.ProductImages.RemoveRange(context.ProductImages);
-                    context.Products.RemoveRange(context.Products);
-                    context.CategoryImages.RemoveRange(context.CategoryImages);
-                    context.Categories.RemoveRange(context.Categories);
-                    context.SiteSettings.RemoveRange(context.SiteSettings);
-                    
-                    // Keep at least one super admin
-                    var usersToRemove = context.Users.Where(u => u.Role != UserRole.SuperAdmin);
-                    context.Users.RemoveRange(usersToRemove);
-                    
-                    await context.SaveChangesAsync();
+                    // Clear existing data in FK-safe order using ExecuteDeleteAsync
+                    // (avoids loading entities into the change tracker, preventing identity conflicts on re-add)
+                    await context.RefreshTokens.ExecuteDeleteAsync();
+                    await context.ChatMessages.ExecuteDeleteAsync();
+                    await context.ChatSessions.ExecuteDeleteAsync();
+                    await context.OrderItems.ExecuteDeleteAsync();
+                    await context.Orders.ExecuteDeleteAsync();
+                    await context.ProductImages.ExecuteDeleteAsync();
+                    await context.Products.ExecuteDeleteAsync();
+                    await context.CategoryImages.ExecuteDeleteAsync();
+                    await context.Categories.ExecuteDeleteAsync();
+                    await context.ContactSubmissions.ExecuteDeleteAsync();
+                    await context.Appointments.ExecuteDeleteAsync();
+                    await context.MediaFiles.ExecuteDeleteAsync();
+                    await context.MediaSections.ExecuteDeleteAsync();
+                    await context.SiteSettings.ExecuteDeleteAsync();
+                    await context.Users.Where(u => u.Role != UserRole.SuperAdmin).ExecuteDeleteAsync();
 
                     // Restore SiteSettings
                     if (backupData.TryGetProperty("SiteSettings", out var settingsJson))
                     {
                         var settings = JsonSerializer.Deserialize<List<SiteSetting>>(settingsJson.GetRawText());
-                        if (settings != null)
-                        {
-                            context.SiteSettings.AddRange(settings);
-                        }
+                        if (settings != null) context.SiteSettings.AddRange(settings);
                     }
 
                     // Restore Users (but don't overwrite existing super admin)
@@ -1922,7 +1997,30 @@ public class Program
                         {
                             var existingSuperAdminEmails = context.Users.Where(u => u.Role == UserRole.SuperAdmin).Select(u => u.Email).ToList();
                             var newUsers = users.Where(u => !existingSuperAdminEmails.Contains(u.Email)).ToList();
+                            foreach (var u in newUsers) u.RefreshTokens = new List<RefreshToken>();
                             context.Users.AddRange(newUsers);
+                        }
+                    }
+
+                    // Restore MediaSections (must come before MediaFiles)
+                    if (backupData.TryGetProperty("MediaSections", out var sectionsJson))
+                    {
+                        var sections = JsonSerializer.Deserialize<List<MediaSection>>(sectionsJson.GetRawText());
+                        if (sections != null)
+                        {
+                            foreach (var s in sections) { s.Category = null; s.MediaFiles = new List<MediaFile>(); }
+                            context.MediaSections.AddRange(sections);
+                        }
+                    }
+
+                    // Restore MediaFiles (must come before CategoryImages and ProductImages)
+                    if (backupData.TryGetProperty("MediaFiles", out var mediaFilesJson))
+                    {
+                        var mediaFiles = JsonSerializer.Deserialize<List<MediaFile>>(mediaFilesJson.GetRawText());
+                        if (mediaFiles != null)
+                        {
+                            foreach (var mf in mediaFiles) { mf.UploadedByUser = null; mf.Section = null; }
+                            context.MediaFiles.AddRange(mediaFiles);
                         }
                     }
 
@@ -1932,36 +2030,40 @@ public class Program
                         var categories = JsonSerializer.Deserialize<List<Category>>(categoriesJson.GetRawText());
                         if (categories != null)
                         {
+                            foreach (var c in categories) { c.Products = new List<Product>(); c.CategoryImage = null; }
                             context.Categories.AddRange(categories);
                         }
                     }
 
-                    // Restore CategoryImages
+                    // Restore CategoryImages (after MediaFiles and Categories)
                     if (backupData.TryGetProperty("CategoryImages", out var catImagesJson))
                     {
                         var categoryImages = JsonSerializer.Deserialize<List<CategoryImage>>(catImagesJson.GetRawText());
                         if (categoryImages != null)
                         {
+                            foreach (var ci in categoryImages) { ci.Category = null!; ci.MediaFile = null!; }
                             context.CategoryImages.AddRange(categoryImages);
                         }
                     }
 
-                    // Restore Products
+                    // Restore Products (after Categories)
                     if (backupData.TryGetProperty("Products", out var productsJson))
                     {
                         var products = JsonSerializer.Deserialize<List<Product>>(productsJson.GetRawText());
                         if (products != null)
                         {
+                            foreach (var p in products) { p.Category = null!; p.ProductImages = new List<ProductImage>(); }
                             context.Products.AddRange(products);
                         }
                     }
 
-                    // Restore ProductImages
+                    // Restore ProductImages (after MediaFiles and Products)
                     if (backupData.TryGetProperty("ProductImages", out var prodImagesJson))
                     {
                         var productImages = JsonSerializer.Deserialize<List<ProductImage>>(prodImagesJson.GetRawText());
                         if (productImages != null)
                         {
+                            foreach (var pi in productImages) { pi.Product = null!; pi.MediaFile = null!; }
                             context.ProductImages.AddRange(productImages);
                         }
                     }
@@ -2224,6 +2326,7 @@ public class Program
                 submission.Status = request.Status;
                 submission.AdminNotes = request.AdminNotes;
                 submission.AssignedToUserId = request.AssignedToUserId;
+                submission.UpdatedAt = DateTime.UtcNow;
 
                 await context.SaveChangesAsync();
 
@@ -2286,14 +2389,14 @@ public class Program
             var inProgressSubmissions = await context.ContactSubmissions.CountAsync(c => c.Status == ContactStatus.InProgress);
             var resolvedSubmissions = await context.ContactSubmissions.CountAsync(c => c.Status == ContactStatus.Resolved);
             
-            // Calculate average response time client-side to avoid database-specific function ambiguity
+            // Project only the 2 needed DateTime columns to minimise data transfer,
+            // then compute the average in-process (EF Core cannot translate TimeSpan.TotalMinutes to MySQL SQL).
             var readSubmissions = await context.ContactSubmissions
                 .Where(c => c.ReadAt.HasValue)
-                .OrderBy(c => c.CreatedAt)
                 .Select(c => new { c.CreatedAt, c.ReadAt })
                 .ToListAsync();
-            
-            var avgResponseTime = readSubmissions.Any() 
+
+            var avgResponseTime = readSubmissions.Any()
                 ? readSubmissions.Average(c => (c.ReadAt!.Value - c.CreatedAt).TotalMinutes)
                 : 0;
 
@@ -2329,11 +2432,7 @@ public class Program
         {
             pageSize = Math.Min(pageSize, 100);
             page = Math.Max(page, 1);
-            var query = context.Orders
-                .Include(o => o.Items)
-                    .ThenInclude(i => i.Product)
-                .Include(o => o.User)
-                .AsQueryable();
+            var query = context.Orders.AsQueryable();
 
             // Search by order number, customer name, email, or phone
             if (!string.IsNullOrWhiteSpace(search))
@@ -2704,20 +2803,6 @@ public class Program
                 .Where(o => o.PaymentStatus == PaymentStatus.Pending)
                 .SumAsync(o => o.TotalAmount);
 
-            var recentOrders = await context.Orders
-                .OrderByDescending(o => o.CreatedAt)
-                .Take(5)
-                .Select(o => new
-                {
-                    o.Id,
-                    o.OrderNumber,
-                    o.CustomerName,
-                    o.TotalAmount,
-                    o.OrderStatus,
-                    o.CreatedAt
-                })
-                .ToListAsync();
-
             return Results.Ok(new
             {
                 totalOrders,
@@ -2726,8 +2811,7 @@ public class Program
                 shippedOrders,
                 deliveredOrders,
                 totalRevenue,
-                pendingPayments,
-                recentOrders
+                pendingPayments
             });
         })
         .WithName("GetOrdersStats")
@@ -3549,7 +3633,6 @@ public class Program
         {
             var query = context.Appointments
                 .Include(a => a.User)
-                .Include(a => a.CreatedBy)
                 .AsQueryable();
 
             if (startDate.HasValue)
@@ -3577,8 +3660,7 @@ public class Program
                     a.UserId,
                     User = a.User != null ? new { a.User.Id, a.User.FirstName, a.User.LastName, a.User.Email } : null,
                     a.CreatedAt,
-                    a.UpdatedAt,
-                    CreatedBy = a.CreatedBy != null ? new { a.CreatedBy.FirstName, a.CreatedBy.LastName } : null
+                    a.UpdatedAt
                 })
                 .ToListAsync();
 
@@ -3824,8 +3906,164 @@ public class Program
         .Produces(200)
         .RequireAuthorization("AdminOnly");
 
-        v1Routes.MapGet("/health", () => Results.Ok(new { 
-            status = "healthy", 
+        // ── Chat endpoints ───────────────────────────────────────────────────────
+        // POST /api/v1/chat/sessions  — customer starts a new session
+        v1Routes.MapPost("/chat/sessions", async (
+            StartChatRequest request,
+            PowersportsDbContext db,
+            HttpContext httpContext,
+            IHubContext<PowersportsApi.Hubs.ChatHub> hub) =>
+        {
+            if (!MiniValidator.TryValidate(request, out var errors))
+                return Results.ValidationProblem(errors);
+
+            var session = new ChatSession
+            {
+                GuestName    = request.Name?.Trim(),
+                GuestEmail   = request.Email?.Trim(),
+                SessionToken = Guid.NewGuid().ToString(),
+                Status       = ChatSessionStatus.Waiting,
+                CreatedAt    = DateTime.UtcNow
+            };
+
+            // Link to user account if authenticated
+            var userIdClaim = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(userIdClaim, out var userId))
+                session.UserId = userId;
+
+            db.ChatSessions.Add(session);
+            await db.SaveChangesAsync();
+
+            // Notify all connected agents in real time
+            await hub.Clients.Group("agents").SendAsync("NewSession", new
+            {
+                id          = session.Id,
+                guestName   = session.GuestName,
+                guestEmail  = session.GuestEmail,
+                userId      = session.UserId,
+                status      = session.Status.ToString(),
+                createdAt   = session.CreatedAt,
+                unreadCount = 1,
+                lastMessage = (string?)null
+            });
+
+            return Results.Ok(new { sessionId = session.Id, sessionToken = session.SessionToken, status = session.Status.ToString() });
+        })
+        .WithName("StartChatSession")
+        .WithTags("Chat");
+
+        // GET /api/v1/chat/sessions  — admin: list all open sessions
+        v1Routes.MapGet("/chat/sessions", async (PowersportsDbContext db, string? status) =>
+        {
+            var query = db.ChatSessions
+                .Include(s => s.Messages)
+                .AsQueryable();
+
+            if (Enum.TryParse<ChatSessionStatus>(status, true, out var statusFilter))
+                query = query.Where(s => s.Status == statusFilter);
+
+            var sessions = await query
+                .OrderByDescending(s => s.CreatedAt)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.UserId,
+                    s.GuestName,
+                    s.GuestEmail,
+                    status = s.Status.ToString(),
+                    s.CreatedAt,
+                    s.ClosedAt,
+                    unreadCount = s.Messages.Count(m => !m.IsRead && m.SenderRole == SenderRole.Customer),
+                    lastMessage = s.Messages.OrderByDescending(m => m.SentAt).Select(m => m.Body).FirstOrDefault()
+                })
+                .ToListAsync();
+
+            return Results.Ok(sessions);
+        })
+        .WithName("GetChatSessions")
+        .WithTags("Chat")
+        .RequireAuthorization("AdminOnly");
+
+        // GET /api/v1/chat/sessions/{id}  — load session + full message history
+        v1Routes.MapGet("/chat/sessions/{id:int}", async (int id, PowersportsDbContext db) =>
+        {
+            var session = await db.ChatSessions
+                .Include(s => s.Messages.OrderBy(m => m.SentAt))
+                .Where(s => s.Id == id)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.UserId,
+                    s.GuestName,
+                    s.GuestEmail,
+                    status = s.Status.ToString(),
+                    s.CreatedAt,
+                    s.ClosedAt,
+                    messages = s.Messages.Select(m => new
+                    {
+                        m.Id,
+                        m.SenderName,
+                        senderRole = m.SenderRole.ToString(),
+                        m.Body,
+                        m.SentAt,
+                        m.IsRead
+                    })
+                })
+                .FirstOrDefaultAsync();
+
+            return session is null ? Results.NotFound() : Results.Ok(session);
+        })
+        .WithName("GetChatSession")
+        .WithTags("Chat")
+        .RequireAuthorization("AdminOnly");
+
+        // PATCH /api/v1/chat/sessions/{id}/mark-read  — mark all customer messages as read
+        v1Routes.MapPatch("/chat/sessions/{id:int}/mark-read", async (int id, PowersportsDbContext db) =>
+        {
+            var unread = await db.ChatMessages
+                .Where(m => m.SessionId == id && !m.IsRead && m.SenderRole == SenderRole.Customer)
+                .ToListAsync();
+
+            unread.ForEach(m => m.IsRead = true);
+            await db.SaveChangesAsync();
+            return Results.Ok(new { marked = unread.Count });
+        })
+        .WithName("MarkChatSessionRead")
+        .WithTags("Chat")
+        .RequireAuthorization("AdminOnly");
+
+        // DELETE /api/v1/chat/sessions/{id}  — close a session via REST (admin)
+        v1Routes.MapDelete("/chat/sessions/{id:int}", async (int id, PowersportsDbContext db) =>
+        {
+            var session = await db.ChatSessions.FindAsync(id);
+            if (session is null) return Results.NotFound();
+
+            session.Status = ChatSessionStatus.Closed;
+            session.ClosedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            return Results.Ok(new { sessionId = id, status = "Closed" });
+        })
+        .WithName("CloseChatSession")
+        .WithTags("Chat")
+        .RequireAuthorization("AdminOnly");
+
+        // DELETE /api/v1/chat/sessions/{id}/permanent — hard-delete a closed session (superadmin only)
+        v1Routes.MapDelete("/chat/sessions/{id:int}/permanent", async (int id, PowersportsDbContext db) =>
+        {
+            var session = await db.ChatSessions.FindAsync(id);
+            if (session is null) return Results.NotFound();
+            if (session.Status != ChatSessionStatus.Closed)
+                return Results.BadRequest(new { message = "Only closed sessions can be permanently deleted." });
+            db.ChatSessions.Remove(session);
+            await db.SaveChangesAsync();
+            return Results.Ok(new { deleted = id });
+        })
+        .WithName("PermanentDeleteChatSession")
+        .WithTags("Chat")
+        .RequireAuthorization("SuperAdminOnly");
+
+        v1Routes.MapGet("/health", () => Results.Ok(new {
+            status = "healthy",
             version = "v1.0",
             timestamp = DateTime.UtcNow
         }))
@@ -4185,7 +4423,7 @@ public class Program
 
                 return Results.Ok(categoryImage);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return Results.Problem("Failed to retrieve category image.");
             }
@@ -4340,11 +4578,13 @@ public class Program
                 new SiteSetting { Key = "site_name", DisplayName = "Site Name", Value = "701 Performance Power", Type = SettingType.Text, Category = "General", SortOrder = 1, IsRequired = true },
                 new SiteSetting { Key = "site_tagline", DisplayName = "Site Tagline", Value = "", Type = SettingType.Text, Category = "General", SortOrder = 2 },
                 new SiteSetting { Key = "logo_url", DisplayName = "Logo URL", Value = "", Type = SettingType.Image, Category = "General", SortOrder = 3 },
-                
-                // Contact Settings  
-                new SiteSetting { Key = "contact_email", DisplayName = "Contact Email", Value = "", Type = SettingType.Email, Category = "General", SortOrder = 4, IsRequired = true },
-                new SiteSetting { Key = "contact_phone", DisplayName = "Contact Phone", Value = "", Type = SettingType.Phone, Category = "General", SortOrder = 5 },
-                new SiteSetting { Key = "contact_address", DisplayName = "Contact Address", Value = "123 Powersports Drive, Fargo, ND 58102", Type = SettingType.TextArea, Category = "General", SortOrder = 6 },
+                new SiteSetting { Key = "logo_header_height", DisplayName = "Header Logo Height", Value = "40", Type = SettingType.Number, Category = "General", SortOrder = 4 },
+                new SiteSetting { Key = "logo_footer_height", DisplayName = "Footer Logo Height", Value = "48", Type = SettingType.Number, Category = "General", SortOrder = 5 },
+
+                // Contact Settings
+                new SiteSetting { Key = "contact_email", DisplayName = "Contact Email", Value = "", Type = SettingType.Email, Category = "General", SortOrder = 6, IsRequired = true },
+                new SiteSetting { Key = "contact_phone", DisplayName = "Contact Phone", Value = "", Type = SettingType.Phone, Category = "General", SortOrder = 7 },
+                new SiteSetting { Key = "contact_address", DisplayName = "Contact Address", Value = "123 Powersports Drive, Fargo, ND 58102", Type = SettingType.TextArea, Category = "General", SortOrder = 8 },
                 
                 // Social Media
                 new SiteSetting { Key = "facebook_url", DisplayName = "Facebook URL", Value = "", Type = SettingType.Url, Category = "Social Media", SortOrder = 1 },
@@ -4355,7 +4595,7 @@ public class Program
                 // Homepage Content
                 new SiteSetting { Key = "hero_title", DisplayName = "Homepage Hero Title", Value = "", Type = SettingType.Text, Category = "Homepage", SortOrder = 1 },
                 new SiteSetting { Key = "hero_subtitle", DisplayName = "Homepage Hero Subtitle", Value = "", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 2 },
-                new SiteSetting { Key = "home_features", DisplayName = "Why Choose Us Features", Value = "[]", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 3 },
+                new SiteSetting { Key = "home_features", DisplayName = "Why Choose Us Features", Value = "[{\"icon\":\"🛍️\",\"title\":\"Wide Selection\",\"description\":\"From ATVs to snowmobiles, we have everything you need for your next adventure.\"},{\"icon\":\"⭐\",\"title\":\"Quality Brands\",\"description\":\"We partner with top manufacturers to bring you reliable, high-performance vehicles.\"},{\"icon\":\"🔧\",\"title\":\"Expert Support\",\"description\":\"Our knowledgeable team is here to help you find the perfect gear for your needs.\"},{\"icon\":\"🚚\",\"title\":\"Fast Delivery\",\"description\":\"Quick and reliable shipping so your gear arrives when you need it.\"},{\"icon\":\"💳\",\"title\":\"Flexible Financing\",\"description\":\"Affordable payment plans to help you get the ride you want without the wait.\"},{\"icon\":\"🏆\",\"title\":\"Warranty & After-Sale Service\",\"description\":\"Every vehicle comes backed by manufacturer warranty and our full after-sale support.\"}]", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 3 },
                 new SiteSetting { Key = "partner_brands", DisplayName = "Partner Brands", Value = "[]", Type = SettingType.TextArea, Category = "Homepage", SortOrder = 4 },
                 new SiteSetting { Key = "brands_section_title", DisplayName = "Brands Section Title", Value = "", Type = SettingType.Text, Category = "Homepage", SortOrder = 5 },
                 new SiteSetting { Key = "brands_section_subtitle", DisplayName = "Brands Section Subtitle", Value = "", Type = SettingType.Text, Category = "Homepage", SortOrder = 6 },
@@ -4421,12 +4661,8 @@ public class Program
                 
                 // Advanced - Performance & Caching
                 new SiteSetting { Key = "image_quality", DisplayName = "Image Quality (%)", Value = "85", Type = SettingType.Number, Category = "Advanced", SortOrder = 7 },
-                new SiteSetting { Key = "cache_duration", DisplayName = "Cache Duration (hours)", Value = "24", Type = SettingType.Number, Category = "Advanced", SortOrder = 8 },
-                new SiteSetting { Key = "max_image_width", DisplayName = "Max Image Width (px)", Value = "1920", Type = SettingType.Number, Category = "Advanced", SortOrder = 9 },
-                new SiteSetting { Key = "max_image_height", DisplayName = "Max Image Height (px)", Value = "1080", Type = SettingType.Number, Category = "Advanced", SortOrder = 10 },
-                new SiteSetting { Key = "enable_image_optimization", DisplayName = "Enable Image Optimization", Value = "true", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 11 },
-                new SiteSetting { Key = "enable_cdn", DisplayName = "Enable CDN", Value = "false", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 12 },
-                new SiteSetting { Key = "enable_compression", DisplayName = "Enable Compression", Value = "true", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 13 },
+                new SiteSetting { Key = "max_image_width", DisplayName = "Max Image Width (px)", Value = "1920", Type = SettingType.Number, Category = "Advanced", SortOrder = 8 },
+                new SiteSetting { Key = "enable_compression", DisplayName = "Enable Compression", Value = "true", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 9 },
                 
                 // Advanced - System Settings
                 new SiteSetting { Key = "enable_maintenance_mode", DisplayName = "Enable Maintenance Mode", Value = "false", Type = SettingType.Boolean, Category = "Advanced", SortOrder = 14 },
@@ -4461,6 +4697,8 @@ public class Program
                     setting.LastModifiedBy = superAdminId;
                     setting.UpdatedAt = DateTime.UtcNow;
                     setting.CreatedAt = DateTime.UtcNow;
+                    setting.IsPublic = setting.Category is not ("Email" or "Advanced" or "Security" or "System");
+                    if (setting.Key == "enable_maintenance_mode") setting.IsPublic = true;
                     Console.WriteLine($"  + {setting.Key}");
                 }
 
@@ -4494,5 +4732,12 @@ public class Program
 }
 
 // Request DTOs
+public record StartChatRequest(
+    [property: System.ComponentModel.DataAnnotations.Required]
+    [property: System.ComponentModel.DataAnnotations.MaxLength(80)]
+    string? Name,
+    [property: System.ComponentModel.DataAnnotations.MaxLength(200)]
+    [property: System.ComponentModel.DataAnnotations.EmailAddress]
+    string? Email);
 public record LinkImageRequest(int MediaFileId, bool IsMain = false);
 public record UpdateProductImageRequest(bool IsMain, int SortOrder);

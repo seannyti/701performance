@@ -124,7 +124,7 @@ public class ContactRequest
     [StringLength(100)]
     public string Email { get; set; } = string.Empty;
 
-    [StringLength(200)]
+    [StringLength(200, MinimumLength = 2)]
     public string? Subject { get; set; }
 
     [Required]

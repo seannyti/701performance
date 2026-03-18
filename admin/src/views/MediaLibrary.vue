@@ -34,14 +34,22 @@
               </div>
             </div>
             <div class="section-actions" @click.stop>
-              <button 
-                @click="openUploadModal(section.id)" 
+              <button
+                @click="openUploadModal(section.id)"
                 class="btn btn-sm"
                 style="color: white !important; background: rgba(255, 255, 255, 0.2) !important; border: 1px solid rgba(255, 255, 255, 0.3) !important;"
               >
                 ⬆ Upload Files
               </button>
-              <button 
+              <button
+                v-if="!section.isSystem"
+                @click="openEditSectionModal(section)"
+                class="btn btn-sm ms-2"
+                style="color: white !important; background: rgba(255, 255, 255, 0.2) !important; border: 1px solid rgba(255, 255, 255, 0.3) !important;"
+              >
+                ✏️ Edit Section
+              </button>
+              <button
                 v-if="!section.isSystem"
                 @click="confirmDeleteSection(section)"
                 :disabled="isActionLoading(section.id)"
@@ -267,6 +275,58 @@
         </div>
       </div>
 
+      <!-- Edit Section Modal -->
+      <div
+        v-if="showEditSectionModal"
+        class="modal-overlay"
+        @click.self="showEditSectionModal = false"
+      >
+        <div class="modal-dialog">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center" style="background: white !important;">
+              <h3 class="card-title" style="color: #333 !important;">Edit Section</h3>
+              <button @click="showEditSectionModal = false" class="btn-close" style="color: #333 !important;">&times;</button>
+            </div>
+            <div class="card-body">
+              <div class="form-group mb-3">
+                <label style="color: #333 !important;">Section Name *</label>
+                <input
+                  v-model="editSectionForm.name"
+                  type="text"
+                  class="form-control"
+                  placeholder="e.g., Promotions, Events, Seasonal"
+                  style="color: #333 !important; background: white !important;"
+                />
+              </div>
+              <div class="form-group mb-3">
+                <label style="color: #333 !important;">Description</label>
+                <textarea
+                  v-model="editSectionForm.description"
+                  class="form-control"
+                  rows="3"
+                  placeholder="Optional description for this section..."
+                  style="color: #333 !important; background: white !important;"
+                ></textarea>
+              </div>
+              <div class="d-flex gap-2">
+                <button
+                  @click="renameSection"
+                  :disabled="!editSectionForm.name.trim() || isActionLoading('editSection')"
+                  class="btn flex-1"
+                  style="color: white !important;"
+                >
+                  <span v-if="isActionLoading('editSection')" class="btn-spinner"></span>
+                  {{ isActionLoading('editSection') ? 'Saving...' : 'Save Changes' }}
+                </button>
+                <button @click="showEditSectionModal = false" class="btn btn-secondary" style="color: white !important;">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Media Detail Panel -->
       <div v-if="selectedMedia" class="media-detail-panel">
         <div class="card">
@@ -372,16 +432,36 @@
         </div>
       </div>
     </div>
+
+    <!-- Confirm Modal -->
+    <div v-if="confirmModal.show" class="modal-overlay" @click.self="closeConfirmModal">
+      <div class="modal-dialog" style="max-width: 480px;">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center" style="background: white !important;">
+            <h3 class="card-title" style="color: #333 !important;">{{ confirmModal.title }}</h3>
+            <button @click="closeConfirmModal" class="btn-close" style="color: #333 !important;">&times;</button>
+          </div>
+          <div class="card-body">
+            <p style="color: #333; margin-bottom: 1.5rem;">{{ confirmModal.message }}</p>
+            <div class="d-flex justify-content-end gap-2">
+              <button @click="closeConfirmModal" class="btn btn-secondary">Cancel</button>
+              <button @click="executeConfirmModal" :class="confirmModal.dangerous ? 'btn btn-danger' : 'btn btn-primary'">Confirm</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </AdminLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import { useToast } from '@/composables/useToast'
 import { useLoadingState } from '@/composables/useLoadingState'
 import { logError } from '@/services/logger'
-import { API_URL, getMediaUrl } from '@/utils/api-config'
+import { getMediaUrl } from '@/utils/api-config'
+import { apiGet, apiPost, apiPut, apiDelete, apiClient } from '@/utils/apiClient'
 
 const toast = useToast()
 const { isLoading, executeWithLoading, isActionLoading } = useLoadingState()
@@ -418,6 +498,13 @@ interface UploadFile {
   file: File
 }
 
+const confirmModal = reactive({ show: false, title: '', message: '', dangerous: false, onConfirm: null as (() => void) | null })
+const showConfirmModal = (title: string, message: string, onConfirm: () => void, dangerous = false) => {
+  Object.assign(confirmModal, { show: true, title, message, dangerous, onConfirm })
+}
+const closeConfirmModal = () => { confirmModal.show = false; confirmModal.onConfirm = null }
+const executeConfirmModal = () => { confirmModal.onConfirm?.(); closeConfirmModal() }
+
 const sections = ref<Section[]>([])
 const expandedSections = ref<number[]>([])
 const sectionFiles = ref<Record<number, MediaFile[]>>({})
@@ -427,7 +514,6 @@ const showUploadModal = ref(false)
 const showCreateSectionModal = ref(false)
 const isDragging = ref(false)
 const uploadFiles = ref<UploadFile[]>([])
-const isUploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const currentUploadSectionId = ref<number | null>(null)
 
@@ -448,6 +534,10 @@ const newSection = ref({
   description: ''
 })
 
+const showEditSectionModal = ref(false)
+const editingSection = ref<Section | null>(null)
+const editSectionForm = ref({ name: '', description: '' })
+
 const currentSectionName = computed(() => {
   const section = sections.value.find(s => s.id === currentUploadSectionId.value)
   return section?.name || 'Unknown Section'
@@ -456,20 +546,11 @@ const currentSectionName = computed(() => {
 const loadSections = async () => {
   await executeWithLoading(async () => {
     try {
-      const token = sessionStorage.getItem('admin_token')
-      const response = await fetch(`${API_URL}/admin/media/sections`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      
-      if (response.ok) {
-        sections.value = await response.json()
-        // Auto-expand first section
-        if (sections.value.length > 0 && expandedSections.value.length === 0) {
-          expandedSections.value.push(sections.value[0].id)
-          loadSectionFiles(sections.value[0].id)
-        }
+      sections.value = await apiGet<Section[]>('/admin/media/sections')
+      // Auto-expand first section
+      if (sections.value.length > 0 && expandedSections.value.length === 0) {
+        expandedSections.value.push(sections.value[0].id)
+        loadSectionFiles(sections.value[0].id)
       }
     } catch (error) {
       logError('Failed to load sections', error)
@@ -479,23 +560,14 @@ const loadSections = async () => {
 
 const loadSectionFiles = async (sectionId: number) => {
   if (loadingSections.value.includes(sectionId)) return
-  
-  loadingSections.value.push(sectionId)
-  
-  try {
-    const token = sessionStorage.getItem('admin_token')
-    const response = await fetch(
-      `${API_URL}/admin/media?sectionId=${sectionId}&pageSize=100`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      }
-    )
 
-    if (response.ok) {
-      const data = await response.json()
-      sectionFiles.value[sectionId] = data.files || []
+  loadingSections.value.push(sectionId)
+
+  try {
+    const data = await apiGet<{ files: MediaFile[]; total: number }>(`/admin/media?sectionId=${sectionId}&pageSize=100`)
+    sectionFiles.value[sectionId] = data.files || []
+    if (data.total > 100) {
+      toast.warning(`Section has ${data.total} files; only the first 100 are shown.`)
     }
   } catch (error) {
     logError(`Failed to load files for section ${sectionId}`, error)
@@ -510,9 +582,7 @@ const toggleSection = (sectionId: number) => {
     expandedSections.value.splice(index, 1)
   } else {
     expandedSections.value.push(sectionId)
-    if (!sectionFiles.value[sectionId]) {
-      loadSectionFiles(sectionId)
-    }
+    loadSectionFiles(sectionId)
   }
 }
 
@@ -538,6 +608,7 @@ const handleFileSelect = (event: Event) => {
     Array.from(target.files).forEach(file => {
       uploadFiles.value.push({ file })
     })
+    target.value = ''
   }
 }
 
@@ -556,13 +627,11 @@ const removeUploadFile = (index: number) => {
 
 const uploadFilesToLibrary = async () => {
   if (!currentUploadSectionId.value) return
-  
-  await executeWithLoading(async () => {
-    const token = sessionStorage.getItem('admin_token')
 
+  await executeWithLoading(async () => {
     try {
-      let failedFiles: string[] = []
-      
+      const failedFiles: string[] = []
+
       for (const uploadFile of uploadFiles.value) {
         const formData = new FormData()
         formData.append('file', uploadFile.file)
@@ -571,14 +640,7 @@ const uploadFilesToLibrary = async () => {
         formData.append('tags', uploadMetadata.value.tags)
         formData.append('sectionId', currentUploadSectionId.value!.toString())
 
-        const response = await fetch(`${API_URL}/admin/media/upload`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formData
-        })
-
+        const response = await apiClient('/admin/media/upload', { method: 'POST', body: formData })
         if (!response.ok) {
           const errorText = await response.text()
           logError('Failed to upload file: ' + uploadFile.file.name, errorText)
@@ -589,18 +651,15 @@ const uploadFilesToLibrary = async () => {
       if (failedFiles.length > 0) {
         toast.error(`Failed to upload ${failedFiles.length} file(s): ${failedFiles.join(', ')}`)
       } else {
+        const uploadedSectionId = currentUploadSectionId.value!
         toast.uploadSuccess(uploadFiles.value.length)
         closeUploadModal()
-        // Reload the section's files
-        if (currentUploadSectionId.value) {
-          loadSectionFiles(currentUploadSectionId.value)
-          // Update media count in sections list
-          loadSections()
-        }
+        loadSectionFiles(uploadedSectionId)
+        loadSections()
       }
     } catch (error) {
       logError('Failed to upload files', error)
-      toast.uploadError('An error occurred while uploading files')
+      toast.error('An error occurred while uploading files')
     }
   }, 'upload')
 }
@@ -609,75 +668,68 @@ const createSection = async () => {
   if (!newSection.value.name.trim()) return
 
   await executeWithLoading(async () => {
-    const token = sessionStorage.getItem('admin_token')
     try {
-      const response = await fetch(`${API_URL}/admin/media/sections`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: newSection.value.name.trim(),
-          description: newSection.value.description.trim() || null,
-          displayOrder: 100
-        })
+      await apiPost('/admin/media/sections', {
+        name: newSection.value.name.trim(),
+        description: newSection.value.description.trim() || null,
+        displayOrder: 100
       })
-
-      if (response.ok) {
-        toast.success('Section created successfully!')
-        newSection.value = { name: '', description: '' }
-        showCreateSectionModal.value = false
-        loadSections()
-      } else {
-        const error = await response.json()
-        toast.error(`Failed to create section: ${error.message || 'Unknown error'}`)
-      }
-    } catch (error) {
+      toast.success('Section created successfully!')
+      newSection.value = { name: '', description: '' }
+      showCreateSectionModal.value = false
+      loadSections()
+    } catch (error: any) {
       logError('Failed to create section', error)
-      toast.error('An error occurred while creating the section')
+      toast.error(`Failed to create section: ${error.message || 'Unknown error'}`)
     }
   }, 'createSection')
 }
 
-const confirmDeleteSection = async (section: Section) => {
-  const fileCount = section.mediaCount
-  const confirmMessage = fileCount > 0
-    ? `Are you sure you want to delete "${section.name}" and all ${fileCount} file(s) in it? This will permanently delete the files from the server and cannot be undone.`
-    : `Are you sure you want to delete "${section.name}"?`
-  
-  if (!confirm(confirmMessage)) return
+const openEditSectionModal = (section: Section) => {
+  editingSection.value = section
+  editSectionForm.value = { name: section.name, description: section.description || '' }
+  showEditSectionModal.value = true
+}
+
+const renameSection = async () => {
+  if (!editingSection.value || !editSectionForm.value.name.trim()) return
 
   await executeWithLoading(async () => {
-    const token = sessionStorage.getItem('admin_token')
     try {
-      const response = await fetch(
-        `${API_URL}/admin/media/sections/${section.id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      )
-
-      if (response.ok) {
-        toast.deleteSuccess(`Section '${section.name}'`)
-        // Remove from expanded sections
-        expandedSections.value = expandedSections.value.filter(id => id !== section.id)
-        // Remove files cache
-        delete sectionFiles.value[section.id]
-        // Reload sections
-        loadSections()
-      } else {
-        const error = await response.json()
-        toast.error(`Failed to delete section: ${error.message || 'Unknown error'}`)
-      }
-    } catch (error) {
-      logError('Failed to delete section', error)
-      toast.error('An error occurred while deleting the section')
+      await apiPut(`/admin/media/sections/${editingSection.value!.id}`, {
+        name: editSectionForm.value.name.trim(),
+        description: editSectionForm.value.description.trim() || null
+      })
+      toast.success('Section updated successfully!')
+      showEditSectionModal.value = false
+      editingSection.value = null
+      loadSections()
+    } catch (error: any) {
+      logError('Failed to update section', error)
+      toast.error(`Failed to update section: ${error.message || 'Unknown error'}`)
     }
-  }, section.id)
+  }, 'editSection')
+}
+
+const confirmDeleteSection = (section: Section) => {
+  const fileCount = section.mediaCount
+  const msg = fileCount > 0
+    ? `Are you sure you want to delete "${section.name}" and all ${fileCount} file(s) in it? This will permanently delete the files from the server and cannot be undone.`
+    : `Are you sure you want to delete "${section.name}"?`
+  showConfirmModal('Delete Section', msg, async () => {
+    await executeWithLoading(async () => {
+    try {
+      await apiDelete(`/admin/media/sections/${section.id}`)
+      toast.deleteSuccess(`Section '${section.name}'`)
+      expandedSections.value = expandedSections.value.filter(id => id !== section.id)
+      delete sectionFiles.value[section.id]
+      loadSections()
+    } catch (error: any) {
+      logError('Failed to delete section', error)
+      toast.error(`Failed to delete section: ${error.message || 'Unknown error'}`)
+    }
+    }, section.id)
+  }, true)
 }
 
 const selectMedia = (file: MediaFile) => {
@@ -693,31 +745,16 @@ const updateMediaMetadata = async () => {
   if (!selectedMedia.value) return
 
   await executeWithLoading(async () => {
-    const token = sessionStorage.getItem('admin_token')
     try {
-      const response = await fetch(
-        `${API_URL}/admin/media/${selectedMedia.value!.id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            altText: editMetadata.value.altText,
-            caption: editMetadata.value.caption,
-            tags: editMetadata.value.tags
-          })
-        }
-      )
-
-      if (response.ok) {
-        toast.saveSuccess('Metadata')
-        // Update selected media
-        selectedMedia.value!.altText = editMetadata.value.altText
-        selectedMedia.value!.caption = editMetadata.value.caption
-        selectedMedia.value!.tags = editMetadata.value.tags
-      }
+      await apiPut(`/admin/media/${selectedMedia.value!.id}`, {
+        altText: editMetadata.value.altText,
+        caption: editMetadata.value.caption,
+        tags: editMetadata.value.tags
+      })
+      toast.saveSuccess('Metadata')
+      selectedMedia.value!.altText = editMetadata.value.altText
+      selectedMedia.value!.caption = editMetadata.value.caption
+      selectedMedia.value!.tags = editMetadata.value.tags
     } catch (error) {
       logError('Failed to update metadata', error)
       toast.saveError('Failed to update metadata')
@@ -725,40 +762,21 @@ const updateMediaMetadata = async () => {
   }, 'updateMetadata')
 }
 
-const deleteMediaFile = async (id: number) => {
-  if (!confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
-    return
-  }
-
-  await executeWithLoading(async () => {
-    const token = sessionStorage.getItem('admin_token')
-    try {
-      const response = await fetch(
-        `${API_URL}/admin/media/${id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      )
-
-      if (response.ok) {
+const deleteMediaFile = (id: number) => {
+  showConfirmModal('Delete File', 'Are you sure you want to delete this file? This action cannot be undone.', async () => {
+    await executeWithLoading(async () => {
+      try {
+        await apiDelete(`/admin/media/${id}`)
         toast.deleteSuccess('File')
         selectedMedia.value = null
-        // Reload sections to update counts
         loadSections()
-        // Reload section files
         expandedSections.value.forEach(sid => loadSectionFiles(sid))
-      } else {
-        const error = await response.json()
+      } catch (error: any) {
+        logError('Failed to delete file', error)
         toast.error(`Failed to delete file: ${error.message || 'Unknown error'}`)
       }
-    } catch (error) {
-      logError('Failed to delete file', error)
-      toast.error('An error occurred while deleting the file')
-    }
-  }, id)
+    }, id)
+  }, true)
 }
 
 const copyFileUrl = () => {

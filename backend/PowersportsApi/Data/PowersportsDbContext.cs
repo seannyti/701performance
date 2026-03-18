@@ -26,6 +26,8 @@ public class PowersportsDbContext : DbContext
     public DbSet<MediaFile> MediaFiles { get; set; } = null!;
     public DbSet<MediaSection> MediaSections { get; set; } = null!;
     public DbSet<Appointment> Appointments { get; set; } = null!;
+    public DbSet<ChatSession> ChatSessions { get; set; } = null!;
+    public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -292,6 +294,43 @@ public class PowersportsDbContext : DbContext
             
             entity.HasIndex(e => e.Name).IsUnique();
             entity.HasIndex(e => e.CategoryId);
+        });
+
+        // Configure ChatSession entity
+        modelBuilder.Entity<ChatSession>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.GuestName).HasMaxLength(100);
+            entity.Property(e => e.GuestEmail).HasMaxLength(200);
+            entity.Property(e => e.AgentConnectionId).HasMaxLength(200);
+            entity.Property(e => e.Status).HasConversion<int>();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasMany(e => e.Messages)
+                  .WithOne(m => m.Session)
+                  .HasForeignKey(m => m.SessionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.CreatedAt);
+        });
+
+        // Configure ChatMessage entity
+        modelBuilder.Entity<ChatMessage>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SenderName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.SenderRole).HasConversion<int>();
+            entity.Property(e => e.Body).IsRequired();
+            entity.Property(e => e.SentAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+            entity.HasIndex(e => e.SessionId);
+            entity.HasIndex(e => e.SentAt);
         });
 
         // Seed data

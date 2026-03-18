@@ -287,6 +287,11 @@ body {
   }
 }
 
+/* Center spinners inside .loading-state containers */
+.loading-state .spinner {
+  margin: 0 auto 1rem;
+}
+
 /* Button Loading States */
 .btn-spinner {
   display: inline-block;

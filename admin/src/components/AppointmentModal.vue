@@ -180,6 +180,10 @@
 import { ref, computed, watch } from 'vue'
 import type { Appointment, CreateAppointmentRequest, UpdateAppointmentRequest, AppointmentUser } from '@/types'
 import { apiGet, apiPost, apiPut } from '@/utils/apiClient'
+import { logError } from '@/services/logger'
+
+// Module-level cache — fetched once per page load, not on every modal open
+let cachedUsers: AppointmentUser[] | null = null
 
 const props = defineProps<{
   isOpen: boolean
@@ -258,11 +262,16 @@ const formatDateTimeLocal = (isoString: string): string => {
 }
 
 const loadRegisteredUsers = async () => {
+  if (cachedUsers !== null) {
+    registeredUsers.value = cachedUsers
+    return
+  }
   try {
     const response = await apiGet<AppointmentUser[]>('/appointments/users')
+    cachedUsers = response
     registeredUsers.value = response
   } catch (err) {
-    console.error('Failed to load users:', err)
+    logError('Failed to load users', err)
   }
 }
 

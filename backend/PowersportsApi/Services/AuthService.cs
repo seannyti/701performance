@@ -70,13 +70,15 @@ public class AuthService
                 .FirstOrDefaultAsync();
             bool requireVerification = requireVerificationSetting?.ToLowerInvariant() == "true";
 
+            string? rawToken = null;
             if (requireVerification)
             {
-                // Generate verification token
-                var verificationToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
+                // Generate verification token — store only the SHA-256 hash, send raw token in email
+                rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
                 user.IsEmailVerified = false;
-                user.EmailVerificationToken = verificationToken;
+                user.EmailVerificationToken = HashVerificationToken(rawToken);
                 user.EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24);
+                user.VerificationEmailLastSentAt = DateTime.UtcNow;
             }
             else
             {
@@ -96,8 +98,11 @@ public class AuthService
                     var siteUrl = await _context.SiteSettings
                         .Where(s => s.Key == "site_url")
                         .Select(s => s.Value)
-                        .FirstOrDefaultAsync() ?? "http://localhost:3000";
-                    await _emailService.SendVerificationEmailAsync(user.Email, user.FullName, user.EmailVerificationToken!, siteUrl);
+                        .FirstOrDefaultAsync();
+                    if (string.IsNullOrEmpty(siteUrl))
+                        _logger.LogError("site_url is not configured in SiteSettings. Verification emails will contain broken links. Set site_url to the public URL of the frontend (e.g. https://example.com).");
+                    siteUrl ??= "http://localhost:3000";
+                    await _emailService.SendVerificationEmailAsync(user.Email, user.FullName, rawToken!, siteUrl);
                 }
                 catch (Exception emailEx)
                 {
@@ -473,6 +478,13 @@ public class AuthService
         await _context.SaveChangesAsync();
 
         return refreshToken;
+    }
+
+    /// <summary>Returns the SHA-256 hex digest of a raw verification token for safe DB storage.</summary>
+    internal static string HashVerificationToken(string rawToken)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private static string GenerateSecureRefreshToken()

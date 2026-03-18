@@ -31,6 +31,15 @@
       </div>
 
       <div class="filters">
+        <div class="filter-group search-group">
+          <label>Search:</label>
+          <input
+            type="text"
+            v-model="searchQuery"
+            placeholder="Search by name, email, or message..."
+            class="search-input"
+          />
+        </div>
         <div class="filter-group">
           <label>Status:</label>
           <select v-model="filters.status" @change="loadSubmissions">
@@ -60,11 +69,11 @@
           <p>Loading inquiries...</p>
         </div>
         
-        <div v-if="submissions.length === 0 && !isLoading" class="empty-state">
+        <div v-if="filteredSubmissions.length === 0 && !isLoading" class="empty-state">
           <p>No inquiries found</p>
         </div>
 
-        <div v-if="!isLoading && submissions.length > 0" class="submissions-table">
+        <div v-if="!isLoading && filteredSubmissions.length > 0" class="submissions-table">
         <table>
           <thead>
             <tr>
@@ -78,7 +87,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="submission in submissions" :key="submission.id" :class="{ 'unread': submission.status === 'New' }">
+            <tr v-for="submission in filteredSubmissions" :key="submission.id" :class="{ 'unread': submission.status === 'New' }">
               <td>
                 <span class="status-badge" :class="getStatusClass(submission.status)">
                   {{ formatStatus(submission.status) }}
@@ -163,7 +172,7 @@
 
             <div class="detail-group">
               <label>Admin Notes:</label>
-              <textarea v-model="editData.adminNotes" rows="4" placeholder="Add internal notes..."></textarea>
+              <textarea v-model="editData.adminNotes" rows="4" placeholder="Add internal notes..." maxlength="2000"></textarea>
             </div>
           </div>
           <div class="modal-footer">
@@ -180,7 +189,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import AdminLayout from '../components/AdminLayout.vue';
 import { useAuthStore } from '../stores/auth';
@@ -222,6 +231,19 @@ interface Stats {
 }
 
 const submissions = ref<ContactSubmission[]>([]);
+const searchQuery = ref('');
+
+const filteredSubmissions = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase();
+  if (!query) return submissions.value;
+  return submissions.value.filter(s =>
+    s.name.toLowerCase().includes(query) ||
+    s.email.toLowerCase().includes(query) ||
+    s.message.toLowerCase().includes(query) ||
+    (s.subject && s.subject.toLowerCase().includes(query))
+  );
+});
+
 const users = ref<User[]>([]);
 const selectedSubmission = ref<ContactSubmission | null>(null);
 const editData = ref({
@@ -301,21 +323,47 @@ async function loadUsers() {
     });
 
     if (!response.ok) throw new Error('Failed to load users');
-    
+
     const data = await response.json();
-    users.value = data.users;
+    users.value = data.map((u: any) => ({ id: u.id, fullName: `${u.firstName} ${u.lastName}`.trim() }));
   } catch (error) {
     logError('Error loading users', error);
   }
 }
 
-function viewSubmission(submission: ContactSubmission) {
+async function viewSubmission(submission: ContactSubmission) {
   selectedSubmission.value = submission;
   editData.value = {
     status: submission.status,
     adminNotes: submission.adminNotes || '',
     assignedToUserId: submission.assignedToUserId
   };
+
+  // Auto-mark as Read when opening a New inquiry
+  if (submission.status === 'New') {
+    try {
+      const response = await fetch(`${API_URL}/admin/contact-submissions/${submission.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authStore.token}`
+        },
+        body: JSON.stringify({
+          status: 'Read',
+          adminNotes: submission.adminNotes || '',
+          assignedToUserId: submission.assignedToUserId
+        })
+      });
+
+      if (response.ok) {
+        submission.status = 'Read';
+        editData.value.status = 'Read';
+        await loadStats();
+      }
+    } catch (error) {
+      logError('Error auto-marking submission as read', error);
+    }
+  }
 }
 
 function closeModal() {
@@ -390,6 +438,7 @@ function clearFilters() {
     fromDate: '',
     toDate: ''
   };
+  searchQuery.value = '';
   loadSubmissions();
 }
 
@@ -512,6 +561,15 @@ function formatMinutes(minutes: number) {
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 0.875rem;
+}
+
+.search-group {
+  flex: 1;
+  min-width: 220px;
+}
+
+.search-input {
+  width: 100%;
 }
 
 .btn-clear {

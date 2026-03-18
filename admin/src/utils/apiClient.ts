@@ -42,8 +42,9 @@ export async function apiClient(
 
     // Handle 401 Unauthorized - token expired or invalid
     if (response.status === 401) {
-      // Try to refresh the token first before logging out
-      const refreshed = await authStore.refreshAccessToken()
+      // Only attempt refresh if a refresh token is actually available
+      const hasRefreshToken = !!(authStore.refreshToken || sessionStorage.getItem('admin_refresh_token'))
+      const refreshed = hasRefreshToken && await authStore.refreshAccessToken()
       if (refreshed) {
         // Retry the original request with the new token
         const retryHeaders = {
@@ -161,6 +162,36 @@ export async function apiPut<T = unknown, TBody = unknown>(
     throw new Error(errorMessage)
   }
   
+  return response.json()
+}
+
+/**
+ * Helper for PATCH requests
+ */
+export async function apiPatch<T = unknown, TBody = unknown>(
+  endpoint: string,
+  data?: TBody
+): Promise<T> {
+  const response = await apiClient(endpoint, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: data ? JSON.stringify(data) : undefined
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    let errorMessage = `Request failed: ${response.status}`
+    try {
+      const errorJson = JSON.parse(errorText)
+      errorMessage = errorJson.message || errorMessage
+    } catch {
+      errorMessage = errorText || errorMessage
+    }
+    throw new Error(errorMessage)
+  }
+
   return response.json()
 }
 

@@ -279,9 +279,10 @@ public class UpdateContactSubmissionRequest
 {
     [Required]
     public ContactStatus Status { get; set; }
-    
+
+    [StringLength(2000)]
     public string? AdminNotes { get; set; }
-    
+
     public int? AssignedToUserId { get; set; }
 }
 

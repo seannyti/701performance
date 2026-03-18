@@ -116,6 +116,18 @@ public class ProductService
     }
 
     /// <summary>
+    /// Sets the ImageUrl on a product from its main ProductImage, if available.
+    /// </summary>
+    private static void ApplyMainImage(Product product)
+    {
+        var mainImage = product.ProductImages?.FirstOrDefault(pi => pi.IsMain);
+        if (mainImage?.MediaFile != null)
+        {
+            product.ImageUrl = mainImage.MediaFile.ThumbnailPath ?? string.Empty;
+        }
+    }
+
+    /// <summary>
     /// Retrieves all products from the database, including their images. Falls back to in-memory data if database is unavailable.
     /// </summary>
     /// <returns>A list of all products with their main image URLs populated.</returns>
@@ -130,17 +142,13 @@ public class ProductService
                     .Include(p => p.ProductImages)
                         .ThenInclude(pi => pi.MediaFile)
                     .ToListAsync();
-                
+
                 // Set ImageUrl from main product image if available
                 foreach (var product in products)
                 {
-                    var mainImage = product.ProductImages?.FirstOrDefault(pi => pi.IsMain);
-                    if (mainImage?.MediaFile != null)
-                    {
-                        product.ImageUrl = mainImage.MediaFile.ThumbnailPath ?? string.Empty;
-                    }
+                    ApplyMainImage(product);
                 }
-                
+
                 return products;
             }
             else
@@ -171,17 +179,13 @@ public class ProductService
                     .Include(p => p.ProductImages)
                         .ThenInclude(pi => pi.MediaFile)
                     .FirstOrDefaultAsync(p => p.Id == id);
-                
+
                 // Set ImageUrl from main product image if available
                 if (product != null)
                 {
-                    var mainImage = product.ProductImages?.FirstOrDefault(pi => pi.IsMain);
-                    if (mainImage?.MediaFile != null)
-                    {
-                        product.ImageUrl = mainImage.MediaFile.ThumbnailPath ?? string.Empty;
-                    }
+                    ApplyMainImage(product);
                 }
-                
+
                 return product;
             }
             else
@@ -232,7 +236,7 @@ public class ProductService
     }
 
     /// <summary>
-    /// Retrieves the first 3 products for display on the home page. Falls back to in-memory data if database is unavailable.
+    /// Retrieves up to 3 active featured products for display on the home page. Falls back to in-memory data if database is unavailable.
     /// </summary>
     /// <returns>A list of up to 3 featured products with their main image URLs populated.</returns>
     public async Task<List<Product>> GetFeaturedProductsAsync()
@@ -245,19 +249,16 @@ public class ProductService
                     .Include(p => p.Category)
                     .Include(p => p.ProductImages)
                         .ThenInclude(pi => pi.MediaFile)
+                    .Where(p => p.IsFeatured && p.IsActive)
                     .Take(3)
                     .ToListAsync();
-                
+
                 // Set ImageUrl from main product image if available
                 foreach (var product in products)
                 {
-                    var mainImage = product.ProductImages?.FirstOrDefault(pi => pi.IsMain);
-                    if (mainImage?.MediaFile != null)
-                    {
-                        product.ImageUrl = mainImage.MediaFile.ThumbnailPath ?? string.Empty;
-                    }
+                    ApplyMainImage(product);
                 }
-                
+
                 return products;
             }
             else

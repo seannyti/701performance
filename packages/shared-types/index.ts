@@ -106,6 +106,7 @@ export interface ApiError {
 export interface ContactForm {
   name: string;
   email: string;
+  subject?: string;
   message: string;
 }
 

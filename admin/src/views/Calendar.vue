@@ -123,7 +123,7 @@
                   @click="editAppointment(appointment)"
                   class="btn btn-xs btn-secondary"
                   title="Edit appointment"
-                  :disabled="hasActiveAction()"
+                  :disabled="isActionLoading(appointment.id)"
                 >
                   ✏️ Edit
                 </button>
@@ -152,20 +152,38 @@
       @close="closeModal"
       @saved="handleAppointmentSaved"
     />
+
+    <!-- Confirm Modal -->
+    <div v-if="confirmModal.show" class="modal-overlay" @click.self="closeConfirmModal">
+      <div class="modal modal-sm">
+        <div class="modal-header">
+          <h2>{{ confirmModal.title }}</h2>
+          <button @click="closeConfirmModal" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>{{ confirmModal.message }}</p>
+          <div class="modal-footer">
+            <button @click="closeConfirmModal" class="btn btn-secondary">Cancel</button>
+            <button @click="executeConfirmModal" :class="confirmModal.dangerous ? 'btn btn-danger' : 'btn btn-primary'">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </AdminLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import AppointmentModal from '@/components/AppointmentModal.vue'
 import type { Appointment } from '@/types'
 import { apiGet, apiDelete, apiClient } from '@/utils/apiClient'
+import { logError } from '@/services/logger'
 import { useToast } from '@/composables/useToast'
 import { useLoadingState } from '@/composables/useLoadingState'
 
 const toast = useToast()
-const { isLoading, actionLoading, executeWithLoading, isActionLoading, hasActiveAction } = useLoadingState()
+const { isLoading, actionLoading, executeWithLoading, isActionLoading } = useLoadingState()
 
 interface CalendarDay {
   date: number
@@ -204,69 +222,38 @@ const calendarDays = computed(() => {
   const days: CalendarDay[] = []
   const year = currentDate.value.getFullYear()
   const month = currentDate.value.getMonth()
-  
-  // First day of the month
+
+  // Build appointment count map once
+  const countMap = new Map<string, number>()
+  for (const apt of appointments.value) {
+    const key = new Date(apt.startTime).toDateString()
+    countMap.set(key, (countMap.get(key) ?? 0) + 1)
+  }
+
   const firstDay = new Date(year, month, 1)
   const firstDayOfWeek = firstDay.getDay()
-  
-  // Last day of the month
   const lastDay = new Date(year, month + 1, 0)
   const lastDateOfMonth = lastDay.getDate()
-  
-  // Previous month's trailing days
   const prevMonthLastDay = new Date(year, month, 0).getDate()
+  const today = new Date()
+
   for (let i = firstDayOfWeek - 1; i >= 0; i--) {
     const date = prevMonthLastDay - i
-    const fullDate = new Date(year, month - 1, date)
-    days.push({
-      date,
-      fullDate,
-      isOtherMonth: true,
-      isToday: false,
-      hasEvents: false,
-      eventCount: 0
-    })
+    days.push({ date, fullDate: new Date(year, month - 1, date), isOtherMonth: true, isToday: false, hasEvents: false, eventCount: 0 })
   }
-  
-  // Current month's days
-  const today = new Date()
+
   for (let date = 1; date <= lastDateOfMonth; date++) {
     const fullDate = new Date(year, month, date)
-    const isToday = 
-      date === today.getDate() &&
-      month === today.getMonth() &&
-      year === today.getFullYear()
-    
-    const dayStr = fullDate.toDateString()
-    const eventCount = appointments.value.filter(apt => {
-      const aptDate = new Date(apt.startTime).toDateString()
-      return aptDate === dayStr
-    }).length
-    
-    days.push({
-      date,
-      fullDate,
-      isOtherMonth: false,
-      isToday,
-      hasEvents: eventCount > 0,
-      eventCount
-    })
+    const isToday = date === today.getDate() && month === today.getMonth() && year === today.getFullYear()
+    const eventCount = countMap.get(fullDate.toDateString()) ?? 0
+    days.push({ date, fullDate, isOtherMonth: false, isToday, hasEvents: eventCount > 0, eventCount })
   }
-  
-  // Next month's leading days
-  const remainingDays = 42 - days.length // 6 rows * 7 days
+
+  const remainingDays = 42 - days.length
   for (let date = 1; date <= remainingDays; date++) {
-    const fullDate = new Date(year, month + 1, date)
-    days.push({
-      date,
-      fullDate,
-      isOtherMonth: true,
-      isToday: false,
-      hasEvents: false,
-      eventCount: 0
-    })
+    days.push({ date, fullDate: new Date(year, month + 1, date), isOtherMonth: true, isToday: false, hasEvents: false, eventCount: 0 })
   }
-  
+
   return days
 })
 
@@ -282,7 +269,7 @@ const loadAppointments = async () => {
       const response = await apiGet<Appointment[]>(`/appointments?startDate=${startDate}&endDate=${endDate}`)
       appointments.value = response
     } catch (error) {
-      console.error('Failed to load appointments:', error)
+      logError('Failed to load appointments', error)
       toast.error('Failed to load appointments')
     }
   })
@@ -295,15 +282,20 @@ const navigateMonth = (delta: number) => {
     1
   )
   loadAppointments()
-  // Auto-select today if in this month, otherwise select the 1st
-  setTimeout(() => {
-    const today = calendarDays.value.find(day => day.isToday && !day.isOtherMonth)
-    selectedDay.value = today || calendarDays.value.find(day => !day.isOtherMonth) || null
-  }, 0)
+  const today = calendarDays.value.find(day => day.isToday && !day.isOtherMonth)
+  selectedDay.value = today || calendarDays.value.find(day => !day.isOtherMonth) || null
 }
 
 const previousMonth = () => navigateMonth(-1)
 const nextMonth = () => navigateMonth(1)
+
+// Inline confirm modal
+const confirmModal = reactive({ show: false, title: '', message: '', dangerous: false, onConfirm: null as (() => void) | null })
+const showConfirmModal = (title: string, message: string, onConfirm: () => void, dangerous = false) => {
+  Object.assign(confirmModal, { show: true, title, message, dangerous, onConfirm })
+}
+const closeConfirmModal = () => { confirmModal.show = false; confirmModal.onConfirm = null }
+const executeConfirmModal = () => { confirmModal.onConfirm?.(); closeConfirmModal() }
 
 const selectDay = (day: CalendarDay) => {
   if (!day.isOtherMonth) {
@@ -331,9 +323,8 @@ const handleAppointmentSaved = async () => {
   toast.success('Appointment saved successfully')
 }
 
-const markAsComplete = async (id: number) => {
-  if (!confirm('Mark this appointment as complete?')) return
-  
+const markAsComplete = (id: number) => {
+  showConfirmModal('Mark as Complete', 'Mark this appointment as complete?', async () => {
   await executeWithLoading(async () => {
     try {
       await apiClient(`/appointments/${id}/status`, {
@@ -344,25 +335,26 @@ const markAsComplete = async (id: number) => {
       await loadAppointments()
       toast.success('Appointment marked as complete')
     } catch (error) {
-      console.error('Failed to update appointment:', error)
+      logError('Failed to update appointment:', error)
       toast.error('Failed to update appointment')
     }
   }, id)
+  })
 }
 
-const deleteAppointment = async (id: number) => {
-  if (!confirm('Are you sure you want to delete this appointment? This action cannot be undone.')) return
-  
-  await executeWithLoading(async () => {
-    try {
-      await apiDelete(`/appointments/${id}`)
-      await loadAppointments()
-      toast.success('Appointment deleted successfully')
-    } catch (error) {
-      console.error('Failed to delete appointment:', error)
-      toast.error('Failed to delete appointment')
-    }
-  }, id)
+const deleteAppointment = (id: number) => {
+  showConfirmModal('Delete Appointment', 'Are you sure you want to delete this appointment? This action cannot be undone.', async () => {
+    await executeWithLoading(async () => {
+      try {
+        await apiDelete(`/appointments/${id}`)
+        await loadAppointments()
+        toast.success('Appointment deleted successfully')
+      } catch (error) {
+        logError('Failed to delete appointment:', error)
+        toast.error('Failed to delete appointment')
+      }
+    }, id)
+  }, true)
 }
 
 const formatSelectedDate = (day: CalendarDay) => {

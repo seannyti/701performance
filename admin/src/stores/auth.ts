@@ -135,7 +135,14 @@ export const useAuthStore = defineStore('auth', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: rt })
       })
-      if (!response.ok) return false
+      if (!response.ok) {
+        // Refresh token is invalid/expired — clear it so we don't retry on every page load
+        if (response.status === 401) {
+          refreshToken.value = null
+          sessionStorage.removeItem('admin_refresh_token')
+        }
+        return false
+      }
       const data = await response.json()
       setToken(data.token, data.refreshToken)
       user.value = data.user

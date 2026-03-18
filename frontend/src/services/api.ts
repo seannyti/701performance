@@ -47,16 +47,18 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // On 401, attempt a silent token refresh once then retry the original request
+    // On 401, attempt a silent token refresh once then retry the original request.
+    // Only try if a refresh token is actually available — skip for guest/unauthenticated visitors.
     if (error.response?.status === 401 && !originalRequest._retried) {
-      originalRequest._retried = true;
       const authStore = useAuthStore();
-      const refreshed = await authStore.silentRefresh(
-        authStore.refreshToken || sessionStorage.getItem('refresh_token') || ''
-      );
-      if (refreshed) {
-        originalRequest.headers['Authorization'] = `Bearer ${authStore.token}`;
-        return apiClient(originalRequest);
+      const refreshToken = authStore.refreshToken || sessionStorage.getItem('refresh_token') || '';
+      if (refreshToken) {
+        originalRequest._retried = true;
+        const refreshed = await authStore.silentRefresh(refreshToken);
+        if (refreshed) {
+          originalRequest.headers['Authorization'] = `Bearer ${authStore.token}`;
+          return apiClient(originalRequest);
+        }
       }
     }
 

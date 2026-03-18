@@ -3,7 +3,7 @@
     <div class="settings-page">
       <h1 class="page-title">🎵 Music Player</h1>
 
-      <div v-if="loading" class="loading-state">
+      <div v-if="isLoading && settings.length === 0" class="loading-state">
         <div class="spinner"></div>
         <p>Loading settings...</p>
       </div>
@@ -65,10 +65,10 @@
               <button
                 @click="saveSection(['music_enabled', 'music_embed_code'], 'music')"
                 class="btn btn-primary"
-                :disabled="saving"
+                :disabled="isActionLoading('save-music')"
               >
                 <span class="icon">💾</span>
-                {{ saving ? 'Saving...' : 'Save Music Settings' }}
+                {{ isActionLoading('save-music') ? 'Saving...' : 'Save Music Settings' }}
               </button>
             </div>
           </div>
@@ -85,6 +85,7 @@ import AdminLayout from '@/components/AdminLayout.vue'
 import { logDebug, logError } from '@/services/logger'
 import { useToast } from '@/composables/useToast'
 import { apiGet, apiPut, apiPost } from '@/utils/apiClient'
+import { useLoadingState } from '@/composables/useLoadingState'
 
 interface SiteSetting {
   id: number
@@ -98,11 +99,10 @@ interface SiteSetting {
 }
 
 const toast = useToast()
+const { isLoading, executeWithLoading, isActionLoading } = useLoadingState()
 
 const settings = ref<SiteSetting[]>([])
 const error = ref('')
-const loading = ref(true)
-const saving = ref(false)
 
 const SETTING_METADATA: Record<string, { displayName: string; type: string; category: string; sortOrder: number; defaultValue?: string }> = {
   music_enabled: { displayName: 'Enable Music Player', type: 'Boolean', category: 'Music', sortOrder: 1, defaultValue: 'false' },
@@ -145,54 +145,52 @@ const handleToggleChange = (key: string, event: Event) => {
 }
 
 const loadSettings = async () => {
-  loading.value = true
-  try {
-    const data = await apiGet<SiteSetting[]>('/admin/settings')
-    settings.value = data
-  } catch (err: any) {
-    logError('Failed to load settings', err)
-    error.value = err.message || 'Failed to load settings'
-  } finally {
-    loading.value = false
-  }
+  await executeWithLoading(async () => {
+    try {
+      const data = await apiGet<SiteSetting[]>('/admin/settings')
+      settings.value = data
+    } catch (err: any) {
+      logError('Failed to load settings', err)
+      error.value = err.message || 'Failed to load settings'
+    }
+  })
 }
 
 const saveSection = async (settingKeys: string[], sectionName: string) => {
-  saving.value = true
-  try {
-    const settingsToUpdate = settings.value.filter(s => settingKeys.includes(s.key) && s.id > 0)
-    const missingKeys = settingKeys.filter(k => !settings.value.some(s => s.key === k && s.id > 0))
+  await executeWithLoading(async () => {
+    try {
+      const settingsToUpdate = settings.value.filter(s => settingKeys.includes(s.key) && s.id > 0)
+      const missingKeys = settingKeys.filter(k => !settings.value.some(s => s.key === k && s.id > 0))
 
-    const allPromises: Promise<any>[] = []
+      const allPromises: Promise<any>[] = []
 
-    for (const setting of settingsToUpdate) {
-      allPromises.push(apiPut(`/admin/settings/${setting.id}`, { value: String(setting.value) }))
+      for (const setting of settingsToUpdate) {
+        allPromises.push(apiPut(`/admin/settings/${setting.id}`, { value: String(setting.value) }))
+      }
+
+      for (const key of missingKeys) {
+        const meta = SETTING_METADATA[key]
+        const currentValue = getSetting(key).value || meta?.defaultValue || ''
+        allPromises.push(apiPost('/admin/settings', {
+          key,
+          displayName: meta?.displayName ?? key,
+          value: String(currentValue),
+          description: '',
+          type: meta?.type ?? 'Text',
+          category: meta?.category ?? 'Music',
+          sortOrder: meta?.sortOrder ?? 0,
+          isRequired: false
+        }))
+      }
+
+      await Promise.all(allPromises)
+      toast.saveSuccess('Music settings')
+      await loadSettings()
+    } catch (err: any) {
+      logError('Failed to save music settings', err)
+      toast.saveError(err.message || 'Failed to save music settings')
     }
-
-    for (const key of missingKeys) {
-      const meta = SETTING_METADATA[key]
-      const currentValue = getSetting(key).value || meta?.defaultValue || ''
-      allPromises.push(apiPost('/admin/settings', {
-        key,
-        displayName: meta?.displayName ?? key,
-        value: String(currentValue),
-        description: '',
-        type: meta?.type ?? 'Text',
-        category: meta?.category ?? 'Music',
-        sortOrder: meta?.sortOrder ?? 0,
-        isRequired: false
-      }))
-    }
-
-    await Promise.all(allPromises)
-    toast.saveSuccess('Music settings')
-    await loadSettings()
-  } catch (err: any) {
-    logError('Failed to save music settings', err)
-    toast.saveError(err.message || 'Failed to save music settings')
-  } finally {
-    saving.value = false
-  }
+  }, 'save-music')
 }
 
 onMounted(loadSettings)
@@ -215,21 +213,6 @@ onMounted(loadSettings)
 .loading-state, .error-state {
   text-align: center;
   padding: 4rem 2rem;
-}
-
-.spinner {
-  border: 3px solid #f3f4f6;
-  border-top: 3px solid #4f46e5;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .settings-form {

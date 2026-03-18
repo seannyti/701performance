@@ -2,7 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { logDebug, logWarn } from '@/services/logger'
-import { MAINTENANCE_CHECK_TIMEOUT_MS } from '@/constants'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5226'
 
 // Extend route meta properties
 declare module 'vue-router' {
@@ -67,8 +68,7 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('@/views/SignUp.vue'),
     meta: {
       title: 'Sign Up - Powersports Gear & Vehicles',
-      guest: true,
-      allowDuringMaintenance: true
+      guest: true
     }
   },
   {
@@ -157,52 +157,42 @@ router.beforeEach(async (to, from, next) => {
     return
   }
   
-  // Check maintenance mode
+  // Check maintenance mode — fresh fetch every navigation so toggling takes effect immediately.
+  // /api/v1/settings is whitelisted by the backend maintenance middleware and always returns 200.
   try {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5226'
-    const response = await fetch(`${API_URL}/api/v1/settings`, {
-      // Add a short timeout to prevent hanging
-      signal: AbortSignal.timeout(MAINTENANCE_CHECK_TIMEOUT_MS)
-    })
-    
+    const response = await fetch(`${API_URL}/api/v1/settings`)
     if (response.ok) {
-      const settings = await response.json()
-      const maintenanceSetting = settings.find((s: any) => s.key === 'enable_maintenance_mode')
-      const isMaintenanceMode = maintenanceSetting?.value === 'true'
-      
+      const data: Array<{ key: string; value: string }> = await response.json()
+      const isMaintenanceMode = data.find(s => s.key === 'enable_maintenance_mode')?.value === 'true'
+
       if (isMaintenanceMode) {
-        logDebug('Maintenance mode is active');
-        
-        // Allow access to maintenance page, login, and signup
+        logDebug('Maintenance mode is active')
+
         if (to.meta.allowDuringMaintenance) {
           next()
           return
         }
-        
-        // Check if user is admin (has admin access)
+
         if (authStore.hasAdminAccess) {
-          logDebug('Admin user, bypassing maintenance mode');
+          logDebug('Admin user, bypassing maintenance mode')
           next()
           return
         }
-        
-        // Redirect non-admins to maintenance page
-        logDebug('Non-admin user, redirecting to maintenance');
+
+        logDebug('Non-admin user, redirecting to maintenance')
         if (to.path !== '/maintenance') {
           next('/maintenance')
           return
         }
-      } else if (from.path === '/maintenance' && to.path === '/maintenance') {
-        // If maintenance mode is off and user is on maintenance page, redirect to home
-        logDebug('Maintenance mode disabled, redirecting to home');
+      } else if (to.path === '/maintenance') {
+        logDebug('Maintenance mode disabled, redirecting to home')
         next('/')
         return
       }
     }
   } catch (err) {
-    // If settings check fails (API down, timeout, etc.), allow navigation
-    // This prevents the site from being completely unusable if backend is down
-    logWarn('Could not check maintenance mode', err);
+    // If the fetch fails (API down etc.), allow navigation so the site isn't unusable
+    logWarn('Could not check maintenance mode', err)
   }
   
   next();

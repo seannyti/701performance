@@ -68,6 +68,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresSuperAdmin: true }
     },
     {
+      path: '/live-chat',
+      name: 'live-chat',
+      component: () => import('@/views/LiveChat.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/Settings.vue'),

@@ -130,6 +130,10 @@ export interface DashboardStats {
   totalUsers: number;
   totalAdmins: number;
   recentRegistrations: number;
+  totalOrders: number;
+  pendingOrders: number;
+  totalRevenue: number;
+  newInquiries: number;
   recentUsers: RecentUser[];
   generatedAt: string;
 }

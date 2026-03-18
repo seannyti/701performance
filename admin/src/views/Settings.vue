@@ -2794,19 +2794,6 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label">Cache Duration (hours)</label>
-                <input 
-                  v-model="getSetting('cache_duration').value" 
-                  type="number" 
-                  class="form-control"
-                  placeholder="24"
-                  min="0"
-                  max="720"
-                />
-                <p class="form-hint">How long to cache content (0-720 hours)</p>
-              </div>
-
-              <div class="form-group">
                 <label class="form-label">Max Image Width (px)</label>
                 <input 
                   v-model="getSetting('max_image_width').value" 
@@ -2817,47 +2804,6 @@
                   max="5000"
                 />
                 <p class="form-hint">Maximum width for uploaded images</p>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Max Image Height (px)</label>
-                <input 
-                  v-model="getSetting('max_image_height').value" 
-                  type="number" 
-                  class="form-control"
-                  placeholder="1080"
-                  min="100"
-                  max="5000"
-                />
-                <p class="form-hint">Maximum height for uploaded images</p>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label toggle-label">
-                  <input 
-                    type="checkbox" 
-                    :checked="getSetting('enable_image_optimization').value === 'true'"
-                    @change="handleToggleChange('enable_image_optimization', $event)"
-                    class="toggle-input"
-                  />
-                  <span class="toggle-slider"></span>
-                  Enable Image Optimization
-                </label>
-                <p class="form-hint">Automatically optimize uploaded images</p>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label toggle-label">
-                  <input 
-                    type="checkbox" 
-                    :checked="getSetting('enable_cdn').value === 'true'"
-                    @change="handleToggleChange('enable_cdn', $event)"
-                    class="toggle-input"
-                  />
-                  <span class="toggle-slider"></span>
-                  Enable CDN
-                </label>
-                <p class="form-hint">Use Content Delivery Network for static assets</p>
               </div>
 
               <div class="form-group">
@@ -2877,7 +2823,7 @@
 
             <!-- Save Button -->
             <div class="form-actions">
-              <button @click="saveSection(['image_quality', 'cache_duration', 'max_image_width', 'max_image_height', 'enable_image_optimization', 'enable_cdn', 'enable_compression'], 'performance')" class="btn btn-primary" :disabled="saving">
+              <button @click="saveSection(['image_quality', 'max_image_width', 'enable_compression'], 'performance')" class="btn btn-primary" :disabled="saving">
                 <span class="icon">💾</span>
                 {{ saving ? 'Saving...' : 'Save Performance Settings' }}
               </button>
@@ -2944,7 +2890,7 @@ import { logDebug, logError } from '@/services/logger'
 import { useToast } from '@/composables/useToast'
 import { useLoadingState } from '@/composables/useLoadingState'
 import { SUCCESS_MESSAGE_DURATION_MS } from '@/constants'
-import { apiClient, apiGet, apiPost, apiPut, apiDelete } from '@/utils/apiClient'
+import { apiGet, apiPost, apiPut } from '@/utils/apiClient'
 import { API_URL, getMediaUrl } from '@/utils/api-config'
 
 interface SiteSetting {
@@ -2984,6 +2930,9 @@ const saving = computed(() => {
          isActionLoading('save-privacy') ||
          isActionLoading('save-terms') ||
          isActionLoading('save-smtp') ||
+         isActionLoading('save-security') ||
+         isActionLoading('save-performance') ||
+         isActionLoading('save-system') ||
          isActionLoading('preset-Modern & Clean') ||
          isActionLoading('preset-Bold & Dynamic') ||
          isActionLoading('preset-Minimal & Elegant') ||
@@ -4050,21 +3999,6 @@ onMounted(async () => {
   margin-top: 1.5rem;
 }
 
-.spinner {
-  border: 3px solid #f3f4f6;
-  border-top: 3px solid #4f46e5;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
 .settings-form {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
@@ -4574,15 +4508,6 @@ onMounted(async () => {
   color: #6b7280;
 }
 
-.spinner {
-  display: inline-block;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
 
 .alert {
   padding: 1rem 1.25rem;

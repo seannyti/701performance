@@ -446,11 +446,12 @@ import { useLoadingState } from '@/composables/useLoadingState'
 import { UserRole } from '@/types'
 import type { AdminUser, CreateUserRequest, UpdateUserInfoRequest } from '@/types'
 import { logError, logDebug } from '@/services/logger'
-
-import { API_URL } from '@/utils/api-config'
+import { apiGet, apiPost, apiPut, apiDelete } from '@/utils/apiClient'
+import { useToast } from '@/composables/useToast'
 
 const authStore = useAuthStore()
 const { isLoading, executeWithLoading, isActionLoading } = useLoadingState()
+const toast = useToast()
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const users        = ref<AdminUser[]>([])
@@ -519,11 +520,8 @@ const loadUsers = async () => {
   await executeWithLoading(async () => {
     error.value = null
     try {
-      const res = await fetch(`${API_URL}/admin/users`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      })
-      if (!res.ok) throw new Error(`Server responded with ${res.status}`)
-      users.value = await res.json()
+      const res = await apiGet<AdminUser[]>('/admin/users')
+      users.value = res
       logDebug('Users loaded', { count: users.value.length })
     } catch (err) {
       logError('Failed to load users', err)
@@ -571,36 +569,23 @@ const submitEditUser = async () => {
     editError.value = null
     try {
       const userId = editTarget.value!.id
-
-      // Save profile info
-      const infoRes = await fetch(`${API_URL}/admin/users/${userId}/info`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
-        body: JSON.stringify({
-          firstName: editForm.value.firstName,
-          lastName:  editForm.value.lastName,
-          email:     editForm.value.email,
-          phone:     editForm.value.phone || null,
-          subscribeNewsletter: editForm.value.subscribeNewsletter,
-          isEmailVerified: editForm.value.isEmailVerified
-        })
-      })
-      if (!infoRes.ok) {
-        const data = await infoRes.json()
-        throw new Error(data.message ?? 'Update failed')
+      const profileData = {
+        firstName: editForm.value.firstName,
+        lastName:  editForm.value.lastName,
+        email:     editForm.value.email,
+        phone:     editForm.value.phone || null,
+        subscribeNewsletter: editForm.value.subscribeNewsletter,
+        isEmailVerified: editForm.value.isEmailVerified
       }
+      const needsRoleUpdate = authStore.isSuperAdmin && editTarget.value!.id !== currentUserId.value && editForm.value.role !== toUserRole(editTarget.value!.role)
 
-      // Save role if changed and SuperAdmin
-      if (authStore.isSuperAdmin && editTarget.value!.id !== currentUserId.value && editForm.value.role !== editTarget.value!.role) {
-        const roleRes = await fetch(`${API_URL}/admin/users/${userId}/role`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
-          body: JSON.stringify({ role: editForm.value.role })
-        })
-        if (!roleRes.ok) {
-          const data = await roleRes.json()
-          throw new Error(data.message ?? 'Role update failed')
-        }
+      if (needsRoleUpdate) {
+        await Promise.all([
+          apiPut(`/admin/users/${userId}/info`, profileData),
+          apiPut(`/admin/users/${userId}/role`, { role: editForm.value.role })
+        ])
+      } else {
+        await apiPut(`/admin/users/${userId}/info`, profileData)
       }
 
       // Update local state
@@ -617,7 +602,7 @@ const submitEditUser = async () => {
           u.roleName = roleLabel(editForm.value.role)
         }
       }
-
+      toast.saveSuccess('User')
       closeEditModal()
     } catch (err) {
       logError('Failed to edit user', err)
@@ -648,16 +633,9 @@ const submitResetPassword = async () => {
   await executeWithLoading(async () => {
     resetPwError.value = null
     try {
-      const res = await fetch(`${API_URL}/admin/users/${resetPwTarget.value!.id}/password`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
-        body: JSON.stringify({ newPassword: resetPwForm.value.newPassword })
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.message ?? 'Password reset failed')
-      }
+      await apiPut(`/admin/users/${resetPwTarget.value!.id}/password`, { newPassword: resetPwForm.value.newPassword })
       resetPwTarget.value = null
+      toast.success('Password reset successfully')
     } catch (err) {
       logError('Failed to reset password', err)
       resetPwError.value = (err as Error).message
@@ -669,15 +647,9 @@ const submitResetPassword = async () => {
 const toggleStatus = async (user: AdminUser) => {
   await executeWithLoading(async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/users/${user.id}/status`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.message ?? 'Status update failed')
-      }
+      await apiPut(`/admin/users/${user.id}/status`)
       user.isActive = !user.isActive
+      toast.success(`User ${user.isActive ? 'activated' : 'deactivated'}`)
     } catch (err) {
       logError('Failed to toggle status', err)
       error.value = (err as Error).message
@@ -712,15 +684,10 @@ const submitAddUser = async () => {
   await executeWithLoading(async () => {
     addError.value = null
     try {
-      const res = await fetch(`${API_URL}/admin/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
-        body: JSON.stringify(addForm.value)
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.message ?? 'Create failed')
+      const data = await apiPost<AdminUser>('/admin/users', addForm.value)
       users.value.unshift(data)
       closeAddModal()
+      toast.success('User created successfully')
     } catch (err) {
       logError('Failed to create user', err)
       addError.value = (err as Error).message
@@ -736,16 +703,10 @@ const deleteUser = async () => {
   const userId = deleteTarget.value.id
   await executeWithLoading(async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/users/${userId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.message ?? 'Delete failed')
-      }
+      await apiDelete(`/admin/users/${userId}`)
       users.value = users.value.filter(u => u.id !== userId)
       deleteTarget.value = null
+      toast.deleteSuccess('User')
     } catch (err) {
       logError('Failed to delete user', err)
       error.value = (err as Error).message
@@ -808,7 +769,12 @@ const isOnline = (user: AdminUser): boolean => {
 let refreshInterval: ReturnType<typeof setInterval>
 onMounted(() => {
   loadUsers()
-  refreshInterval = setInterval(loadUsers, 30_000)
+  const tick = () => {
+    if (document.visibilityState === 'visible' && !editTarget.value && !deleteTarget.value && !resetPwTarget.value && !showAddModal.value) {
+      loadUsers()
+    }
+  }
+  refreshInterval = setInterval(tick, 30_000)
 })
 onUnmounted(() => clearInterval(refreshInterval))
 </script>

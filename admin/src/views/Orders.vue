@@ -118,7 +118,10 @@
               </td>
               <td>{{ formatDate(order.createdAt) }}</td>
               <td>
-                <button class="btn-view" @click="viewOrder(order.id)">View</button>
+                <button class="btn-view" @click="viewOrder(order.id)" :disabled="isActionLoading(`viewOrder-${order.id}`)">
+                  <span v-if="isActionLoading(`viewOrder-${order.id}`)" class="btn-spinner"></span>
+                  View
+                </button>
                 <button class="btn-delete" @click="confirmDeleteOrder(order.id)" :disabled="isActionLoading(order.id)">
                   <span v-if="isActionLoading(order.id)" class="btn-spinner"></span>
                   {{ isActionLoading(order.id) ? 'Deleting...' : 'Delete' }}
@@ -178,7 +181,10 @@
                   </div>
                   <div class="form-group">
                     <label>State:</label>
-                    <input type="text" v-model="editForm.shippingState" />
+                    <select v-model="editForm.shippingState">
+                      <option value="">-- Select --</option>
+                      <option v-for="state in US_STATES" :key="state" :value="state">{{ state }}</option>
+                    </select>
                   </div>
                   <div class="form-group">
                     <label>Zip Code:</label>
@@ -257,6 +263,10 @@
                     <label>Shipped Date:</label>
                     <input type="datetime-local" v-model="editForm.shippedDate" />
                   </div>
+                  <div class="form-group">
+                    <label>Delivered Date:</label>
+                    <input type="datetime-local" v-model="editForm.deliveredDate" />
+                  </div>
                 </div>
               </div>
 
@@ -267,10 +277,12 @@
                   <div class="form-group">
                     <label>Payment Method:</label>
                     <select v-model="editForm.paymentMethod">
+                      <option value="CreditCard">Credit Card</option>
+                      <option value="DebitCard">Debit Card</option>
+                      <option value="CreditCardPhone">Credit Card (Phone)</option>
                       <option value="Cash">Cash</option>
                       <option value="Check">Check</option>
                       <option value="BankTransfer">Bank Transfer</option>
-                      <option value="CreditCardPhone">Credit Card (Phone)</option>
                       <option value="Financing">Financing</option>
                       <option value="Other">Other</option>
                     </select>
@@ -291,7 +303,7 @@
                   </div>
                   <div class="form-group full-width">
                     <label>Payment Notes:</label>
-                    <textarea v-model="editForm.paymentNotes" rows="2"></textarea>
+                    <textarea v-model="editForm.paymentNotes" rows="2" maxlength="1000"></textarea>
                   </div>
                 </div>
               </div>
@@ -302,11 +314,11 @@
                 <div class="form-grid">
                   <div class="form-group full-width">
                     <label>Customer Notes:</label>
-                    <textarea v-model="editForm.customerNotes" rows="3" readonly></textarea>
+                    <textarea v-model="editForm.customerNotes" rows="3" readonly maxlength="2000"></textarea>
                   </div>
                   <div class="form-group full-width">
                     <label>Admin Notes:</label>
-                    <textarea v-model="editForm.adminNotes" rows="3"></textarea>
+                    <textarea v-model="editForm.adminNotes" rows="3" maxlength="2000"></textarea>
                   </div>
                 </div>
               </div>
@@ -334,18 +346,33 @@
               <!-- Customer Information -->
               <div class="form-section">
                 <h3>Customer Information</h3>
+                <div class="customer-type-toggle">
+                  <button type="button" :class="['toggle-btn', customerType === 'guest' ? 'active' : '']" @click="customerType = 'guest'; selectedUserId = null; createForm.customerName = ''; createForm.customerEmail = ''; createForm.customerPhone = ''">Guest</button>
+                  <button type="button" :class="['toggle-btn', customerType === 'registered' ? 'active' : '']" @click="customerType = 'registered'">Registered User</button>
+                </div>
+                <div v-if="customerType === 'registered'" class="form-row">
+                  <div class="form-group full-width">
+                    <label>Select User <span class="required">*</span></label>
+                    <select v-model="selectedUserId" @change="onUserSelect">
+                      <option :value="null">-- Select a registered user --</option>
+                      <option v-for="user in registeredUsers" :key="user.id" :value="user.id">
+                        {{ user.fullName }} ({{ user.email }})
+                      </option>
+                    </select>
+                  </div>
+                </div>
                 <div class="form-row">
                   <div class="form-group">
                     <label>Customer Name <span class="required">*</span></label>
-                    <input type="text" v-model="createForm.customerName" required />
+                    <input type="text" v-model="createForm.customerName" :readonly="customerType === 'registered'" required />
                   </div>
                   <div class="form-group">
                     <label>Email <span class="required">*</span></label>
-                    <input type="email" v-model="createForm.customerEmail" required />
+                    <input type="email" v-model="createForm.customerEmail" :readonly="customerType === 'registered'" required />
                   </div>
                   <div class="form-group">
                     <label>Phone <span class="required">*</span></label>
-                    <input type="tel" v-model="createForm.customerPhone" required />
+                    <input type="tel" v-model="createForm.customerPhone" :readonly="customerType === 'registered'" required />
                   </div>
                 </div>
               </div>
@@ -366,7 +393,10 @@
                   </div>
                   <div class="form-group">
                     <label>State <span class="required">*</span></label>
-                    <input type="text" v-model="createForm.shippingState" required />
+                    <select v-model="createForm.shippingState" required>
+                      <option value="">-- Select --</option>
+                      <option v-for="state in US_STATES" :key="state" :value="state">{{ state }}</option>
+                    </select>
                   </div>
                   <div class="form-group">
                     <label>ZIP Code <span class="required">*</span></label>
@@ -379,16 +409,25 @@
               <div class="form-section">
                 <h3>Products</h3>
                 <div class="product-search">
-                  <input 
-                    type="text" 
-                    v-model="productSearch" 
-                    @input="searchProducts" 
-                    placeholder="Search products by name or SKU..."
-                  />
-                  <div v-if="searchResults.length > 0" class="search-results">
-                    <div 
-                      v-for="product in searchResults" 
-                      :key="product.id" 
+                  <div class="product-search-controls">
+                    <select v-model="productCategoryFilter" class="category-select">
+                      <option value="">All Categories</option>
+                      <option v-for="cat in availableCategories" :key="cat.id" :value="cat.name">{{ cat.name }}</option>
+                    </select>
+                    <input
+                      type="text"
+                      v-model="productQuery"
+                      placeholder="Search by name or SKU..."
+                      class="product-query-input"
+                    />
+                  </div>
+                  <div v-if="isLoadingProducts" class="search-result-empty">Loading products...</div>
+                  <div v-else-if="!productQuery && !productCategoryFilter" class="search-result-empty">Select a category or type a name / SKU to find products.</div>
+                  <div v-else-if="filteredProducts.length === 0" class="search-result-empty">No products match your search.</div>
+                  <div v-else class="search-results">
+                    <div
+                      v-for="product in filteredProducts"
+                      :key="product.id"
                       class="search-result-item"
                       @click="addProductToOrder(product)"
                     >
@@ -453,16 +492,18 @@
                       <tr>
                         <td colspan="4" class="text-right">
                           <strong>Tax:</strong>
-                          <input 
-                            type="number" 
-                            v-model.number="createForm.taxAmount" 
-                            min="0" 
-                            step="0.01"
+                          <input
+                            type="number"
+                            v-model.number="createForm.taxPercent"
+                            min="0"
+                            max="100"
+                            step="0.1"
                             class="inline-input"
                             @input="calculateOrderTotal"
                           />
+                          <span class="input-suffix">%</span>
                         </td>
-                        <td colspan="2">${{ formatCurrency(createForm.taxAmount) }}</td>
+                        <td colspan="2">${{ formatCurrency(orderTaxAmount) }}</td>
                       </tr>
                       <tr>
                         <td colspan="4" class="text-right">
@@ -498,9 +539,11 @@
                       <option value="">Select...</option>
                       <option value="CreditCard">Credit Card</option>
                       <option value="DebitCard">Debit Card</option>
+                      <option value="CreditCardPhone">Credit Card (Phone)</option>
                       <option value="Cash">Cash</option>
                       <option value="Check">Check</option>
                       <option value="BankTransfer">Bank Transfer</option>
+                      <option value="Financing">Financing</option>
                       <option value="Other">Other</option>
                     </select>
                   </div>
@@ -517,7 +560,7 @@
                 <div class="form-row">
                   <div class="form-group full-width">
                     <label>Payment Notes</label>
-                    <textarea v-model="createForm.paymentNotes" rows="2"></textarea>
+                    <textarea v-model="createForm.paymentNotes" rows="2" maxlength="1000"></textarea>
                   </div>
                 </div>
               </div>
@@ -528,13 +571,13 @@
                 <div class="form-row">
                   <div class="form-group full-width">
                     <label>Customer Notes</label>
-                    <textarea v-model="createForm.customerNotes" rows="2" placeholder="Notes from customer..."></textarea>
+                    <textarea v-model="createForm.customerNotes" rows="2" placeholder="Notes from customer..." maxlength="2000"></textarea>
                   </div>
                 </div>
                 <div class="form-row">
                   <div class="form-group full-width">
                     <label>Admin Notes</label>
-                    <textarea v-model="createForm.adminNotes" rows="2" placeholder="Internal notes..."></textarea>
+                    <textarea v-model="createForm.adminNotes" rows="2" placeholder="Internal notes..." maxlength="2000"></textarea>
                   </div>
                 </div>
               </div>
@@ -553,16 +596,32 @@
         </div>
       </div>
     </div>
+    <!-- Confirm Modal -->
+    <div v-if="confirmModal.show" class="modal" @click.self="closeConfirmModal">
+      <div class="modal-content modal-sm">
+        <div class="modal-header">
+          <h2>{{ confirmModal.title }}</h2>
+          <button @click="closeConfirmModal" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>{{ confirmModal.message }}</p>
+          <div class="modal-footer">
+            <button @click="closeConfirmModal" class="btn btn-secondary">Cancel</button>
+            <button @click="executeConfirmModal" :class="confirmModal.dangerous ? 'btn btn-danger' : 'btn btn-primary'">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </AdminLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import AdminLayout from '@/components/AdminLayout.vue';
 import { useToast } from '@/composables/useToast';
 import { useLoadingState } from '@/composables/useLoadingState';
 import { logError } from '@/services/logger';
-import { API_URL } from '@/utils/api-config';
+import { apiGet, apiPost, apiPut, apiDelete } from '@/utils/apiClient';
 
 interface Order {
   id: number;
@@ -616,6 +675,13 @@ const { isLoading, executeWithLoading, isActionLoading } = useLoadingState();
 const orders = ref<Order[]>([]);
 const selectedOrder = ref<OrderDetails | null>(null);
 const showCreateModal = ref(false);
+
+const confirmModal = reactive({ show: false, title: '', message: '', dangerous: false, onConfirm: null as (() => void) | null });
+const showConfirmModal = (title: string, message: string, onConfirm: () => void, dangerous = false) => {
+  Object.assign(confirmModal, { show: true, title, message, dangerous, onConfirm });
+};
+const closeConfirmModal = () => { confirmModal.show = false; confirmModal.onConfirm = null; };
+const executeConfirmModal = () => { confirmModal.onConfirm?.(); closeConfirmModal(); };
 const page = ref(1);
 const pagination = reactive({
   totalPages: 1,
@@ -675,7 +741,23 @@ interface Product {
   name: string;
   sku: string;
   price: number;
+  category: string;
 }
+
+interface RegisteredUser {
+  id: number;
+  fullName: string;
+  email: string;
+  phone: string;
+}
+
+const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+  'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+  'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+  'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'
+];
 
 const createForm = reactive({
   customerName: '',
@@ -686,7 +768,7 @@ const createForm = reactive({
   shippingState: '',
   shippingZipCode: '',
   items: [] as CreateOrderItem[],
-  taxAmount: 0,
+  taxPercent: 0,
   shippingCost: 0,
   paymentMethod: '',
   paymentStatus: 'Pending',
@@ -695,11 +777,27 @@ const createForm = reactive({
   adminNotes: ''
 });
 
-const productSearch = ref('');
-const searchResults = ref<Product[]>([]);
-let searchDebounceTimer: any;
+const registeredUsers = ref<RegisteredUser[]>([]);
+const customerType = ref<'guest' | 'registered'>('guest');
+const selectedUserId = ref<number | null>(null);
+const productQuery = ref('');
+const productCategoryFilter = ref('');
+const allProducts = ref<Product[]>([]);
+const isLoadingProducts = ref(false);
+const availableCategories = ref<{ id: number; name: string }[]>([]);
+
+const filteredProducts = computed(() => {
+  if (!productQuery.value && !productCategoryFilter.value) return [];
+  return allProducts.value.filter(p => {
+    const matchesCategory = !productCategoryFilter.value || p.category === productCategoryFilter.value;
+    const q = productQuery.value.toLowerCase();
+    const matchesQuery = !q || p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q));
+    return matchesCategory && matchesQuery;
+  });
+});
 
 const orderSubtotal = ref(0);
+const orderTaxAmount = ref(0);
 const orderTotal = ref(0);
 
 let debounceTimer: any;
@@ -713,12 +811,7 @@ const debounceLoad = () => {
 
 const loadStats = async () => {
   try {
-    const response = await fetch(`${API_URL}/admin/orders/stats`, {
-      headers: {
-        'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
-      }
-    });
-    const data = await response.json();
+    const data = await apiGet<typeof stats>('/admin/orders/stats');
     Object.assign(stats, data);
   } catch (error) {
     logError('Failed to load stats', error);
@@ -728,23 +821,14 @@ const loadStats = async () => {
 const loadOrders = async () => {
   await executeWithLoading(async () => {
     try {
-      const params = new URLSearchParams({
-        page: page.value.toString(),
-        pageSize: '50'
-      });
-
+      const params = new URLSearchParams({ page: page.value.toString(), pageSize: '50' });
       if (filters.search) params.append('search', filters.search);
       if (filters.orderStatus) params.append('orderStatus', filters.orderStatus);
       if (filters.paymentStatus) params.append('paymentStatus', filters.paymentStatus);
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
 
-      const response = await fetch(`${API_URL}/admin/orders?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
-        }
-      });
-      const data = await response.json();
+      const data = await apiGet<{ orders: Order[]; totalPages: number; totalCount: number }>(`/admin/orders?${params}`);
       orders.value = data.orders;
       pagination.totalPages = data.totalPages;
       pagination.totalCount = data.totalCount;
@@ -755,104 +839,84 @@ const loadOrders = async () => {
 };
 
 const viewOrder = async (id: number) => {
-  try {
-    const response = await fetch(`${API_URL}/admin/orders/${id}`, {
-      headers: {
-        'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
-      }
-    });
-    selectedOrder.value = await response.json();
-    
-    // Populate edit form
-    editForm.customerName = selectedOrder.value!.customerName;
-    editForm.customerEmail = selectedOrder.value!.customerEmail;
-    editForm.customerPhone = selectedOrder.value!.customerPhone;
-    editForm.shippingAddress = selectedOrder.value!.shippingAddress;
-    editForm.shippingCity = selectedOrder.value!.shippingCity;
-    editForm.shippingState = selectedOrder.value!.shippingState;
-    editForm.shippingZipCode = selectedOrder.value!.shippingZipCode;
-    editForm.orderStatus = selectedOrder.value!.orderStatus;
-    editForm.paymentStatus = selectedOrder.value!.paymentStatus;
-    editForm.paymentMethod = selectedOrder.value!.paymentMethod;
-    editForm.paymentReceivedDate = formatDateTimeLocal(selectedOrder.value!.paymentReceivedDate);
-    editForm.paymentNotes = selectedOrder.value!.paymentNotes || '';
-    editForm.shippingCarrier = selectedOrder.value!.shippingCarrier || '';
-    editForm.trackingNumber = selectedOrder.value!.trackingNumber || '';
-    editForm.shippedDate = formatDateTimeLocal(selectedOrder.value!.shippedDate);
-    editForm.deliveredDate = formatDateTimeLocal(selectedOrder.value!.deliveredDate);
-    editForm.customerNotes = selectedOrder.value!.customerNotes || '';
-    editForm.adminNotes = selectedOrder.value!.adminNotes || '';
-  } catch (error) {
-    logError('Failed to load order details', error);
-  }
+  await executeWithLoading(async () => {
+    try {
+      const order = await apiGet<OrderDetails>(`/admin/orders/${id}`);
+      selectedOrder.value = order;
+      editForm.customerName = order.customerName;
+      editForm.customerEmail = order.customerEmail;
+      editForm.customerPhone = order.customerPhone;
+      editForm.shippingAddress = order.shippingAddress;
+      editForm.shippingCity = order.shippingCity;
+      editForm.shippingState = order.shippingState;
+      editForm.shippingZipCode = order.shippingZipCode;
+      editForm.orderStatus = order.orderStatus;
+      editForm.paymentStatus = order.paymentStatus;
+      editForm.paymentMethod = order.paymentMethod;
+      editForm.paymentReceivedDate = formatDateTimeLocal(order.paymentReceivedDate);
+      editForm.paymentNotes = order.paymentNotes || '';
+      editForm.shippingCarrier = order.shippingCarrier || '';
+      editForm.trackingNumber = order.trackingNumber || '';
+      editForm.shippedDate = formatDateTimeLocal(order.shippedDate);
+      editForm.deliveredDate = formatDateTimeLocal(order.deliveredDate);
+      editForm.customerNotes = order.customerNotes || '';
+      editForm.adminNotes = order.adminNotes || '';
+    } catch (error) {
+      logError('Failed to load order details', error);
+      toast.error('Failed to load order details');
+    }
+  }, `viewOrder-${id}`);
 };
 
 const saveOrder = async () => {
   if (!selectedOrder.value) return;
-  
   await executeWithLoading(async () => {
     try {
-      const response = await fetch(`${API_URL}/admin/orders/${selectedOrder.value!.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
-        },
-        body: JSON.stringify({
-          customerName: editForm.customerName,
-          customerEmail: editForm.customerEmail,
-          customerPhone: editForm.customerPhone,
-          shippingAddress: editForm.shippingAddress,
-          shippingCity: editForm.shippingCity,
-          shippingState: editForm.shippingState,
-          shippingZipCode: editForm.shippingZipCode,
-          orderStatus: editForm.orderStatus,
-          paymentStatus: editForm.paymentStatus,
-          paymentMethod: editForm.paymentMethod,
-          paymentReceivedDate: editForm.paymentReceivedDate || null,
-          paymentNotes: editForm.paymentNotes,
-          shippingCarrier: editForm.shippingCarrier,
-          trackingNumber: editForm.trackingNumber,
-          shippedDate: editForm.shippedDate || null,
-          deliveredDate: editForm.deliveredDate || null,
-          customerNotes: editForm.customerNotes,
-          adminNotes: editForm.adminNotes
-        })
+      await apiPut(`/admin/orders/${selectedOrder.value!.id}`, {
+        customerName: editForm.customerName,
+        customerEmail: editForm.customerEmail,
+        customerPhone: editForm.customerPhone,
+        shippingAddress: editForm.shippingAddress,
+        shippingCity: editForm.shippingCity,
+        shippingState: editForm.shippingState,
+        shippingZipCode: editForm.shippingZipCode,
+        orderStatus: editForm.orderStatus,
+        paymentStatus: editForm.paymentStatus,
+        paymentMethod: editForm.paymentMethod,
+        paymentReceivedDate: editForm.paymentReceivedDate || null,
+        paymentNotes: editForm.paymentNotes,
+        shippingCarrier: editForm.shippingCarrier,
+        trackingNumber: editForm.trackingNumber,
+        shippedDate: editForm.shippedDate || null,
+        deliveredDate: editForm.deliveredDate || null,
+        customerNotes: editForm.customerNotes,
+        adminNotes: editForm.adminNotes
       });
-
-      if (response.ok) {
-        closeModal();
-        loadOrders();
-        loadStats();
-      }
+      toast.success('Order saved successfully');
+      closeModal();
+      loadOrders();
+      loadStats();
     } catch (error) {
       logError('Failed to save order', error);
+      toast.error('Failed to save order');
     }
   }, 'save');
 };
 
-const confirmDeleteOrder = async (id: number) => {
-  if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
-    return;
-  }
-  
-  await executeWithLoading(async () => {
+const confirmDeleteOrder = (id: number) => {
+  showConfirmModal('Delete Order', 'Are you sure you want to delete this order? This action cannot be undone.', async () => {
+    await executeWithLoading(async () => {
     try {
-      const response = await fetch(`${API_URL}/admin/orders/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
-        }
-      });
-
-      if (response.ok) {
-        loadOrders();
-        loadStats();
-      }
+      await apiDelete(`/admin/orders/${id}`);
+      toast.success('Order deleted successfully');
+      loadOrders();
+      loadStats();
     } catch (error) {
       logError('Failed to delete order', error);
+      toast.error('Failed to delete order');
     }
-  }, id);
+    }, id);
+  }, true);
 };
 
 const changePage = (newPage: number) => {
@@ -866,6 +930,7 @@ const clearFilters = () => {
   filters.paymentStatus = '';
   filters.startDate = '';
   filters.endDate = '';
+  page.value = 1;
   loadOrders();
 };
 
@@ -873,9 +938,50 @@ const closeModal = () => {
   selectedOrder.value = null;
 };
 
+const loadRegisteredUsers = async () => {
+  try {
+    const data = await apiGet<any[]>('/admin/users');
+    registeredUsers.value = data.map((u: any) => ({
+      id: u.id,
+      fullName: `${u.firstName} ${u.lastName}`.trim(),
+      email: u.email,
+      phone: u.phone || ''
+    }));
+  } catch (error) {
+    logError('Failed to load users', error);
+  }
+};
+
+const onUserSelect = () => {
+  const user = registeredUsers.value.find(u => u.id === selectedUserId.value);
+  if (user) {
+    createForm.customerName = user.fullName;
+    createForm.customerEmail = user.email;
+    createForm.customerPhone = user.phone;
+  }
+};
+
+const loadCategoriesAndProducts = async () => {
+  isLoadingProducts.value = true;
+  try {
+    const [catData, prodData] = await Promise.all([
+      apiGet<{ id: number; name: string }[]>('/categories'),
+      apiGet<{ data: Product[] }>('/products?pageSize=200&includeInactive=true')
+    ]);
+    availableCategories.value = catData;
+    allProducts.value = prodData.data || [];
+  } catch (error) {
+    logError('Failed to load products/categories', error);
+  } finally {
+    isLoadingProducts.value = false;
+  }
+};
+
 const openCreateOrderModal = () => {
   resetCreateForm();
   showCreateModal.value = true;
+  loadRegisteredUsers();
+  loadCategoriesAndProducts();
 };
 
 const closeCreateModal = () => {
@@ -892,44 +998,20 @@ const resetCreateForm = () => {
   createForm.shippingState = '';
   createForm.shippingZipCode = '';
   createForm.items = [];
-  createForm.taxAmount = 0;
+  createForm.taxPercent = 0;
   createForm.shippingCost = 0;
   createForm.paymentMethod = '';
   createForm.paymentStatus = 'Pending';
   createForm.paymentNotes = '';
   createForm.customerNotes = '';
   createForm.adminNotes = '';
-  productSearch.value = '';
-  searchResults.value = [];
+  customerType.value = 'guest';
+  selectedUserId.value = null;
+  productQuery.value = '';
+  productCategoryFilter.value = '';
+  allProducts.value = [];
   orderSubtotal.value = 0;
   orderTotal.value = 0;
-};
-
-const searchProducts = async () => {
-  clearTimeout(searchDebounceTimer);
-  
-  if (productSearch.value.length < 2) {
-    searchResults.value = [];
-    return;
-  }
-
-  searchDebounceTimer = setTimeout(async () => {
-    try {
-      const response = await fetch(
-        `${API_URL}/products?search=${encodeURIComponent(productSearch.value)}&pageSize=10`,
-        {
-          headers: {
-            'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
-          }
-        }
-      );
-      const data = await response.json();
-      searchResults.value = data.products || [];
-    } catch (error) {
-      logError('Failed to search products', error);
-      searchResults.value = [];
-    }
-  }, 300);
 };
 
 const addProductToOrder = (product: Product) => {
@@ -962,10 +1044,11 @@ const removeItem = (index: number) => {
 
 const calculateOrderTotal = () => {
   orderSubtotal.value = createForm.items.reduce((sum, item) => {
-    return sum + (item.quantity * item.unitPrice);
+    return sum + ((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0));
   }, 0);
-  
-  orderTotal.value = orderSubtotal.value + createForm.taxAmount + createForm.shippingCost;
+
+  orderTaxAmount.value = orderSubtotal.value * ((Number(createForm.taxPercent) || 0) / 100);
+  orderTotal.value = orderSubtotal.value + orderTaxAmount.value + (Number(createForm.shippingCost) || 0);
 };
 
 const createOrder = async () => {
@@ -990,7 +1073,7 @@ const createOrder = async () => {
           quantity: item.quantity,
           unitPriceOverride: item.unitPrice
         })),
-        taxAmount: createForm.taxAmount,
+        taxAmount: orderTaxAmount.value,
         shippingCost: createForm.shippingCost,
         paymentMethod: createForm.paymentMethod,
         paymentStatus: createForm.paymentStatus,
@@ -999,23 +1082,8 @@ const createOrder = async () => {
         adminNotes: createForm.adminNotes
       };
 
-      const response = await fetch(`${API_URL}/admin/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}`
-        },
-        body: JSON.stringify(orderData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create order');
-      }
-
-      const result = await response.json();
+      const result = await apiPost<{ orderNumber: string }>('/admin/orders', orderData);
       toast.success(`Order created successfully! Order Number: ${result.orderNumber}`);
-      
       closeCreateModal();
       loadOrders();
       loadStats();
@@ -1026,8 +1094,9 @@ const createOrder = async () => {
   }, 'createOrder');
 };
 
-const formatCurrency = (value: number) => {
-  return value.toFixed(2);
+const formatCurrency = (value: number | string | null | undefined) => {
+  const n = Number(value);
+  return isNaN(n) ? '0.00' : n.toFixed(2);
 };
 
 const formatDate = (dateString: string) => {
@@ -1340,6 +1409,10 @@ th, td {
   max-width: 900px;
 }
 
+.modal-content.modal-sm {
+  max-width: 480px;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -1540,32 +1613,87 @@ th, td {
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
+.customer-type-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.toggle-btn {
+  padding: 0.5rem 1.25rem;
+  background: white;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #374151;
+  transition: background 0.15s, color 0.15s;
+}
+
+.toggle-btn:first-child {
+  border-right: 1px solid #d1d5db;
+}
+
+.toggle-btn.active {
+  background: #ff6b35;
+  color: white;
+  font-weight: 600;
+}
+
+.toggle-btn:not(.active):hover {
+  background: #f3f4f6;
+}
+
+input[readonly] {
+  background: #f9fafb;
+  color: #6b7280;
+  cursor: default;
+}
+
 .product-search {
-  position: relative;
   margin-bottom: 1rem;
 }
 
-.product-search input {
-  width: 100%;
-  padding: 0.75rem;
+.product-search-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.category-select {
+  flex: 0 0 180px;
+  padding: 0.6rem 0.75rem;
   border: 1px solid #d1d5db;
   border-radius: 0.375rem;
   font-size: 0.875rem;
 }
 
+.product-query-input {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+
+
 .search-results {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
   background: white;
   border: 1px solid #d1d5db;
   border-radius: 0.375rem;
   margin-top: 0.25rem;
-  max-height: 300px;
+  max-height: 220px;
   overflow-y: auto;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  z-index: 10;
+}
+
+.search-result-empty {
+  padding: 0.75rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+  text-align: center;
 }
 
 .search-result-item {
@@ -1653,6 +1781,12 @@ th, td {
   border-radius: 0.25rem;
   font-size: 0.875rem;
   margin-left: 0.5rem;
+}
+
+.input-suffix {
+  margin-left: 0.25rem;
+  font-size: 0.875rem;
+  color: #6b7280;
 }
 
 .text-right {

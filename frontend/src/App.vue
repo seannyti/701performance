@@ -20,6 +20,12 @@
     <!-- Music player - floating bottom-right, controlled via Admin → Settings → Music -->
     <MusicPlayer />
 
+    <!-- Live chat widget - floating, hidden on special pages and for admins -->
+    <ChatWidget />
+
+    <!-- Admin chat bell - shown only for admins, links to admin live chat panel -->
+    <AdminChatBell v-if="authStore.hasAdminAccess" />
+
     <!-- Toast notifications -->
     <Teleport to="body">
       <div class="toast-container">
@@ -50,14 +56,18 @@ import { useRoute } from 'vue-router'
 import Header from './components/Header.vue';
 import Footer from './components/Footer.vue';
 import MusicPlayer from './components/MusicPlayer.vue';
+import ChatWidget from './components/ChatWidget.vue';
+import AdminChatBell from './components/AdminChatBell.vue';
 import { useTheme } from './composables/useTheme';
 import { useToast } from './composables/useToast';
+import { useAuthStore } from './stores/auth';
 
 // Initialize theme
 useTheme()
 
 const { toasts } = useToast()
 const route = useRoute()
+const authStore = useAuthStore()
 
 // Hide header/footer only on maintenance, login, and signup pages
 const hideHeaderFooter = computed(() => {

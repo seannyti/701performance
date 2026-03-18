@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using PowersportsApi.Data;
 using PowersportsApi.Models;
 using PowersportsApi.Models.Auth;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Formats;
@@ -27,9 +29,9 @@ public class FileService
     private readonly string[] _allowedExtensions;
     private readonly string[] _allowedMimeTypes;
     private readonly long _maxFileSize;
-    private readonly int _maxImageWidth;
+    private readonly int _maxImageWidth;      // config default; overridden per-upload from DB
     private readonly int _thumbnailSize;
-    private readonly int _imageQuality;
+    private readonly int _imageQuality;       // config default; overridden per-upload from DB
 
     public FileService(PowersportsDbContext context, IWebHostEnvironment environment, ILogger<FileService> logger, IHttpContextAccessor httpContextAccessor, IConfiguration configuration)
     {
@@ -145,14 +147,15 @@ public class FileService
         await thumbnail.SaveAsync(thumbnailPath, encoder);
     }
 
-    private IImageEncoder GetImageEncoder(string fileName)
+    private IImageEncoder GetImageEncoder(string fileName, int? quality = null)
     {
+        var q = quality ?? _imageQuality;
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
         return extension switch
         {
             ".png" => new PngEncoder(),
-            ".webp" => new WebpEncoder { Quality = _imageQuality },
-            _ => new JpegEncoder { Quality = _imageQuality },
+            ".webp" => new WebpEncoder { Quality = q },
+            _ => new JpegEncoder { Quality = q },
         };
     }
 
@@ -201,6 +204,15 @@ public class FileService
             _logger.LogError(ex, "Error constructing secure upload path");
             return null;
         }
+    }
+
+    private async Task<int> GetDbSettingIntAsync(string key, int fallback)
+    {
+        var raw = await _context.SiteSettings
+            .Where(s => s.Key == key)
+            .Select(s => s.Value)
+            .FirstOrDefaultAsync();
+        return int.TryParse(raw, out var val) && val > 0 ? val : fallback;
     }
 
     private int GetCurrentUserId()
@@ -283,6 +295,10 @@ public class FileService
             int? height = null;
             string? thumbnailPath = null;
 
+            // Read image processing settings from DB, falling back to appsettings defaults
+            var effectiveMaxWidth = await GetDbSettingIntAsync("max_image_width", _maxImageWidth);
+            var effectiveQuality = await GetDbSettingIntAsync("image_quality", _imageQuality);
+
             // Process image if it's an image file
             if (file.ContentType.StartsWith("image/"))
             {
@@ -292,13 +308,13 @@ public class FileService
                     height = image.Height;
 
                     // Resize if too large
-                    if (image.Width > _maxImageWidth)
+                    if (image.Width > effectiveMaxWidth)
                     {
-                        image.Mutate(x => x.Resize(_maxImageWidth, 0));
+                        image.Mutate(x => x.Resize(effectiveMaxWidth, 0));
                     }
 
                     // Save main image
-                    var encoder = GetImageEncoder(extension);
+                    var encoder = GetImageEncoder(extension, effectiveQuality);
                     await image.SaveAsync(filePath, encoder);
 
                     // Generate thumbnail
@@ -476,6 +492,58 @@ public class FileService
                     File.Delete(thumbnailPath);
                 }
             }
+
+            // Remove FK references in junction tables
+            var productImages = _context.ProductImages.Where(pi => pi.MediaFileId == id);
+            _context.ProductImages.RemoveRange(productImages);
+            var categoryImages = _context.CategoryImages.Where(ci => ci.MediaFileId == id);
+            _context.CategoryImages.RemoveRange(categoryImages);
+
+            // Clear any references to this file path across the site
+            var filePath = mediaFile.FilePath;
+            await _context.Products
+                .Where(p => p.ImageUrl == filePath)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.ImageUrl, ""));
+            await _context.Categories
+                .Where(c => c.ImageUrl == filePath)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.ImageUrl, (string?)null));
+            // Clear SiteSettings values that reference this file (exact match — covers logo_url, about_story_image, etc.)
+            await _context.SiteSettings
+                .Where(s => s.Value == filePath)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.Value, ""));
+
+            // Clean file path from JSON array settings (e.g. partner_brands[].logoUrl)
+            var jsonSettings = await _context.SiteSettings
+                .Where(s => s.Value != null && s.Value.Contains(filePath))
+                .ToListAsync();
+            foreach (var setting in jsonSettings)
+            {
+                try
+                {
+                    var arr = JsonNode.Parse(setting.Value) as JsonArray;
+                    if (arr == null) continue;
+                    bool changed = false;
+                    foreach (var item in arr)
+                    {
+                        if (item is not JsonObject obj) continue;
+                        foreach (var key in obj.ToArray())
+                        {
+                            if (key.Value?.GetValue<string>() == filePath)
+                            {
+                                obj[key.Key] = "";
+                                changed = true;
+                            }
+                        }
+                    }
+                    if (changed)
+                    {
+                        setting.Value = arr.ToJsonString();
+                    }
+                }
+                catch { /* not valid JSON — skip */ }
+            }
+            if (jsonSettings.Any(s => s.Value != null))
+                await _context.SaveChangesAsync();
 
             // Delete database record
             _context.MediaFiles.Remove(mediaFile);

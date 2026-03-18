@@ -65,6 +65,9 @@ BACKUP_*/
 
 # Local dev notes (contains credentials)
 DEVNOTES.md
+ISSUES.md
+QOL_NOTES.md
+TESTING.md
 
 # Package files
 *.nupkg

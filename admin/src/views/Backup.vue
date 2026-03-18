@@ -151,7 +151,7 @@
           <p class="section-description">View, download, or restore from your available backups. Manual and automatic backups are listed separately.</p>
           
           <!-- Loading State -->
-          <div v-if="loadingBackups" class="loading-state-inline">
+          <div v-if="isActionLoading('loadBackups')" class="loading-state-inline">
             <div class="spinner-sm"></div>
             <span>Loading backups...</span>
           </div>
@@ -300,27 +300,161 @@
         </div>
       </div>
     </div>
+
+    <!-- Simple Confirm Modal -->
+    <div v-if="confirmModal.show" class="modal" @click.self="closeConfirmModal">
+      <div class="modal-content modal-sm">
+        <div class="modal-header">
+          <h2>{{ confirmModal.title }}</h2>
+          <button @click="closeConfirmModal" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>{{ confirmModal.message }}</p>
+          <div class="modal-footer">
+            <button @click="closeConfirmModal" class="btn btn-secondary">Cancel</button>
+            <button @click="executeConfirmModal" :class="confirmModal.dangerous ? 'btn btn-danger' : 'btn btn-primary'">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Restore Modal (3-step) -->
+    <div v-if="restoreModal.show" class="modal">
+      <div class="modal-content modal-sm">
+        <!-- Step 1 -->
+        <template v-if="restoreModal.step === 1">
+          <div class="modal-header">
+            <h2>⚠️ Restore Backup — Step 1 of 3</h2>
+          </div>
+          <div class="modal-body">
+            <p><strong>WARNING:</strong> Restoring will <strong>REPLACE all current data</strong> with data from this {{ restoreModal.isProtected ? '🔒 FACTORY DEFAULT backup' : 'backup' }}.</p>
+            <p class="text-muted">File: {{ restoreModal.fileName }}</p>
+            <p>This action <strong>CANNOT be undone</strong>. Continue?</p>
+            <div class="modal-footer">
+              <button @click="closeRestoreModal" class="btn btn-secondary">Cancel</button>
+              <button @click="advanceRestoreStep" class="btn btn-danger">I understand — continue</button>
+            </div>
+          </div>
+        </template>
+        <!-- Step 2 -->
+        <template v-else-if="restoreModal.step === 2">
+          <div class="modal-header">
+            <h2>⚠️ Restore Backup — Step 2 of 3</h2>
+          </div>
+          <div class="modal-body">
+            <p>You are about to <strong>permanently overwrite ALL current site data</strong>.</p>
+            <p v-if="restoreModal.isProtected" class="text-muted">This will reset the site to factory defaults.</p>
+            <p>Are you absolutely certain you want to do this?</p>
+            <div class="modal-footer">
+              <button @click="closeRestoreModal" class="btn btn-secondary">Cancel</button>
+              <button @click="advanceRestoreStep" class="btn btn-danger">Yes, I am certain</button>
+            </div>
+          </div>
+        </template>
+        <!-- Step 3 -->
+        <template v-else>
+          <div class="modal-header">
+            <h2>⚠️ Final Verification — Step 3 of 3</h2>
+          </div>
+          <div class="modal-body">
+            <p>Type <strong>{{ restoreConfirmWord }}</strong> (all caps) to confirm:</p>
+            <input
+              v-model="restoreModal.typedText"
+              type="text"
+              class="form-control"
+              :placeholder="restoreConfirmWord"
+              @keyup.enter="submitRestoreConfirm"
+              style="margin-top: 0.5rem;"
+            />
+            <p v-if="restoreModal.mismatch" style="color: #dc2626; margin-top: 0.5rem; font-size: 0.875rem;">
+              Text did not match. Please type exactly: {{ restoreConfirmWord }}
+            </p>
+            <div class="modal-footer">
+              <button @click="closeRestoreModal" class="btn btn-secondary">Cancel</button>
+              <button @click="submitRestoreConfirm" class="btn btn-danger" :disabled="isActionLoading(`restore-${restoreModal.fileName}`)">
+                <span v-if="isActionLoading(`restore-${restoreModal.fileName}`)" class="btn-spinner"></span>
+                Restore Now
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
   </AdminLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
-import { useAuthStore } from '@/stores/auth'
 import { logError } from '@/services/logger'
 import { useToast } from '@/composables/useToast'
 import { useLoadingState } from '@/composables/useLoadingState'
 import { SUCCESS_MESSAGE_DURATION_MS } from '@/constants'
-import { API_URL } from '@/utils/api-config'
+import { apiGet, apiPost, apiDelete, apiClient } from '@/utils/apiClient'
 
-const authStore = useAuthStore()
 const toast = useToast()
 const { isLoading, executeWithLoading, isActionLoading } = useLoadingState()
+
+interface Backup {
+  fileName: string
+  name?: string
+  type: 'manual' | 'auto'
+  createdAt: string
+  size: number
+  recordCount: number
+  isProtected?: boolean
+}
+
+interface BackupListResult {
+  backups: Backup[]
+  nextAutoBackup?: string
+}
+
+// Confirm modal (for simple single-step confirmations)
+const confirmModal = reactive({ show: false, title: '', message: '', dangerous: false, onConfirm: null as (() => void) | null })
+const showConfirmModal = (title: string, message: string, onConfirm: () => void, dangerous = false) => {
+  Object.assign(confirmModal, { show: true, title, message, dangerous, onConfirm })
+}
+const closeConfirmModal = () => { confirmModal.show = false; confirmModal.onConfirm = null }
+const executeConfirmModal = () => { confirmModal.onConfirm?.(); closeConfirmModal() }
+
+// Restore modal (3-step flow)
+const restoreModal = reactive({
+  show: false,
+  step: 1,          // 1 = first warning, 2 = second warning, 3 = type-to-confirm
+  fileName: '',
+  isProtected: false,
+  typedText: '',
+  mismatch: false
+})
+const openRestoreModal = (fileName: string, isProtected: boolean) => {
+  Object.assign(restoreModal, { show: true, step: 1, fileName, isProtected, typedText: '', mismatch: false })
+}
+const closeRestoreModal = () => { restoreModal.show = false }
+const restoreConfirmWord = computed(() => restoreModal.isProtected ? 'FACTORY RESET' : 'RESTORE')
+const advanceRestoreStep = () => { restoreModal.step++ }
+const submitRestoreConfirm = async () => {
+  if (restoreModal.typedText !== restoreConfirmWord.value) {
+    restoreModal.mismatch = true
+    return
+  }
+  closeRestoreModal()
+  await executeWithLoading(async () => {
+    try {
+      await apiPost('/admin/backup/restore', { fileName: restoreModal.fileName })
+      toast.success('Backup restored successfully! Reloading...')
+      setTimeout(() => { window.location.reload() }, 1500)
+    } catch (err: any) {
+      logError('Failed to restore backup', err)
+      toast.error(`Failed to restore backup: ${err.message}`)
+    }
+  }, `restore-${restoreModal.fileName}`)
+}
 
 // State
 const backupName = ref('')
 const backupStatus = ref<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
-const backupList = ref<any[]>([])
+const backupList = ref<Backup[]>([])
 const autoBackupEnabled = ref(false)
 const autoBackupRetention = ref(7)
 const nextAutoBackupTime = ref('Calculating...')
@@ -342,66 +476,35 @@ const totalBackupSize = computed(() => {
 })
 
 // Functions
-const createManualBackup = async () => {
+const createManualBackup = () => {
   const nameLabel = backupName.value.trim() ? ` "${backupName.value.trim()}"` : ''
-  if (!confirm(`⚠️ Create a new manual backup${nameLabel}? This will be saved on the server and can be downloaded or restored later.`)) {
-    return
-  }
-
-  await executeWithLoading(async () => {
+  showConfirmModal(
+    'Create Manual Backup',
+    `Create a new manual backup${nameLabel}? This will be saved on the server and can be downloaded or restored later.`,
+    async () => { await executeWithLoading(async () => {
     backupStatus.value = { type: 'info', message: 'Creating backup...' }
 
     try {
-      const response = await fetch(`${API_URL}/admin/backup/create`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ type: 'manual', name: backupName.value.trim() || undefined })
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to create backup')
-      }
-
-      const result = await response.json()
+      const result = await apiPost<{ fileName: string }>('/admin/backup/create', { type: 'manual', name: backupName.value.trim() || undefined })
       backupStatus.value = { type: 'success', message: `✅ Backup created successfully: ${result.fileName}` }
       toast.success('Manual backup created successfully!')
       backupName.value = ''
-
-      // Refresh the backup list
       await refreshBackupList()
-
-      // Clear status after 5 seconds
-      setTimeout(() => {
-        backupStatus.value = null
-      }, SUCCESS_MESSAGE_DURATION_MS)
+      setTimeout(() => { backupStatus.value = null }, SUCCESS_MESSAGE_DURATION_MS)
     } catch (err: any) {
       logError('Failed to create backup', err)
       backupStatus.value = { type: 'error', message: '❌ Failed to create backup. Please try again.' }
       toast.error('Failed to create backup')
     }
-  }, 'createBackup')
+    }, 'createBackup') }
+  )
 }
 
 const refreshBackupList = async () => {
   await executeWithLoading(async () => {
     try {
-      const response = await fetch(`${API_URL}/admin/backup/list`, {
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to load backups')
-      }
-
-      const result = await response.json()
+      const result = await apiGet<BackupListResult>('/admin/backup/list')
       backupList.value = result.backups || []
-      
-      // Update next auto backup time
       if (result.nextAutoBackup) {
         nextAutoBackupTime.value = formatDate(result.nextAutoBackup)
       }
@@ -415,16 +518,8 @@ const refreshBackupList = async () => {
 const downloadBackup = async (fileName: string) => {
   await executeWithLoading(async () => {
     try {
-      const response = await fetch(`${API_URL}/admin/backup/download/${encodeURIComponent(fileName)}`, {
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to download backup')
-      }
-
+      const response = await apiClient(`/admin/backup/download/${encodeURIComponent(fileName)}`)
+      if (!response.ok) throw new Error('Failed to download backup')
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -434,7 +529,6 @@ const downloadBackup = async (fileName: string) => {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-      
       toast.success('Backup downloaded successfully!')
     } catch (err: any) {
       logError('Failed to download backup', err)
@@ -443,100 +537,29 @@ const downloadBackup = async (fileName: string) => {
   }, `download-${fileName}`)
 }
 
-const restoreBackup = async (fileName: string, isProtected: boolean = false) => {
-  const backupLabel = isProtected ? '🔒 FACTORY DEFAULT backup' : `backup`
-
-  // Step 1 — initial warning
-  if (!confirm(`⚠️ WARNING: Restoring will REPLACE all current data with data from this ${backupLabel}!\n\nFile: ${fileName}\n\nThis action CANNOT be undone. Continue?`)) {
-    return
-  }
-
-  // Step 2 — stronger warning
-  if (!confirm(`⚠️ SECOND CONFIRMATION:\n\nYou are about to permanently overwrite ALL current site data.\n${isProtected ? 'This will reset the site to factory defaults.\n' : ''}\nAre you absolutely certain you want to do this?`)) {
-    return
-  }
-
-  // Step 3 — type to confirm
-  const confirmWord = isProtected ? 'FACTORY RESET' : 'RESTORE'
-  const typed = prompt(`⚠️ FINAL VERIFICATION — Type "${confirmWord}" (all caps) to confirm:`)
-  if (typed !== confirmWord) {
-    alert('Restore cancelled — confirmation text did not match.')
-    return
-  }
-
-  await executeWithLoading(async () => {
-    try {
-      const response = await fetch(`${API_URL}/admin/backup/restore`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ fileName })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to restore backup')
-      }
-
-      await response.json()
-      toast.success('Backup restored successfully! Reloading...')
-      
-      // Reload after restore
-      setTimeout(() => {
-        window.location.reload()
-      }, 1500)
-    } catch (err: any) {
-      logError('Failed to restore backup', err)
-      toast.error(`Failed to restore backup: ${err.message}`)
-    }
-  }, `restore-${fileName}`)
+const restoreBackup = (fileName: string, isProtected: boolean = false) => {
+  openRestoreModal(fileName, isProtected)
 }
 
-const deleteBackup = async (fileName: string) => {
-  if (!confirm(`⚠️ Delete backup: ${fileName}?\n\nThis action cannot be undone.`)) {
-    return
-  }
-
-  await executeWithLoading(async () => {
-    try {
-      const response = await fetch(`${API_URL}/admin/backup/delete/${encodeURIComponent(fileName)}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete backup')
+const deleteBackup = (fileName: string) => {
+  showConfirmModal('Delete Backup', `Delete backup: ${fileName}? This action cannot be undone.`, async () => {
+    await executeWithLoading(async () => {
+      try {
+        await apiDelete(`/admin/backup/delete/${encodeURIComponent(fileName)}`)
+        toast.success('Backup deleted successfully!')
+        await refreshBackupList()
+      } catch (err: any) {
+        logError('Failed to delete backup', err)
+        toast.error('Failed to delete backup')
       }
-
-      toast.success('Backup deleted successfully!')
-      await refreshBackupList()
-    } catch (err: any) {
-      logError('Failed to delete backup', err)
-      toast.error('Failed to delete backup')
-    }
-  }, `delete-${fileName}`)
+    }, `delete-${fileName}`)
+  }, true)
 }
 
 const toggleAutoBackup = async () => {
   await executeWithLoading(async () => {
     try {
-      const response = await fetch(`${API_URL}/admin/backup/auto-backup/toggle`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ enabled: autoBackupEnabled.value })
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to toggle auto backup')
-      }
-
+      await apiPost('/admin/backup/auto-backup/toggle', { enabled: autoBackupEnabled.value })
       toast.success(`Auto backup ${autoBackupEnabled.value ? 'enabled' : 'disabled'}`)
       await refreshBackupList()
     } catch (err: any) {
@@ -551,19 +574,7 @@ const toggleAutoBackup = async () => {
 const saveAutoBackupRetention = async () => {
   await executeWithLoading(async () => {
     try {
-      const response = await fetch(`${API_URL}/admin/backup/auto-backup/retention`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ retention: autoBackupRetention.value })
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to save retention setting')
-      }
-
+      await apiPost('/admin/backup/auto-backup/retention', { retention: autoBackupRetention.value })
       toast.success('Retention setting saved')
     } catch (err: any) {
       logError('Failed to save retention setting', err)
@@ -597,17 +608,9 @@ const formatFileSize = (bytes: number) => {
 const loadBackupSettings = async () => {
   await executeWithLoading(async () => {
     try {
-      const response = await fetch(`${API_URL}/admin/backup/settings`, {
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`
-        }
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        autoBackupEnabled.value = result.enabled || false
-        autoBackupRetention.value = result.retention || 7
-      }
+      const result = await apiGet<{ enabled: boolean; retention: number }>('/admin/backup/settings')
+      autoBackupEnabled.value = result.enabled || false
+      autoBackupRetention.value = result.retention || 7
     } catch (err: any) {
       logError('Failed to load backup settings', err)
     }
@@ -616,12 +619,8 @@ const loadBackupSettings = async () => {
 
 // Initialize
 onMounted(async () => {
-  try {
-    await loadBackupSettings()
-    await refreshBackupList()
-  } finally {
-    loading.value = false
-  }
+  await loadBackupSettings()
+  await refreshBackupList()
 })
 </script>
 
@@ -652,21 +651,6 @@ onMounted(async () => {
 .loading-state {
   text-align: center;
   padding: 4rem 2rem;
-}
-
-.spinner {
-  border: 3px solid #f3f4f6;
-  border-top: 3px solid #4f46e5;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .backup-stats-grid {
@@ -1128,5 +1112,79 @@ onMounted(async () => {
   font-family: 'Courier New', monospace;
   font-size: 0.813rem;
   color: #92400e;
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-content.modal-sm {
+  max-width: 480px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #666;
+  line-height: 1;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding-top: 1.5rem;
+}
+
+.text-muted {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  box-sizing: border-box;
 }
 </style>

@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@microsoft/signalr": "^8.0.7",
     "@powersports/shared-types": "file:../packages/shared-types",
     "@vueuse/core": "^10.5.0",
     "axios": "^1.6.0",

@@ -58,6 +58,11 @@ public class User
     /// When the email verification token expires
     /// </summary>
     public DateTime? EmailVerificationTokenExpiry { get; set; }
+
+    /// <summary>
+    /// When the last verification email was sent — used to enforce per-user resend cooldown
+    /// </summary>
+    public DateTime? VerificationEmailLastSentAt { get; set; }
     
     /// <summary>
     /// Number of consecutive failed login attempts since last successful login

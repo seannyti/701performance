@@ -90,5 +90,7 @@ public enum PaymentMethod
     BankTransfer,
     CreditCardPhone,
     Financing,
-    Other
+    Other,
+    CreditCard,
+    DebitCard
 }

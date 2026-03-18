@@ -98,12 +98,13 @@
                 <span v-if="isActionLoading(`toggleCategory-${category.id}`)" class="btn-spinner"></span>
                 {{ category.isActive ? 'Disable' : 'Enable' }}
               </button>
-              <button 
-                @click="confirmDeleteCategory(category)" 
+              <button
+                @click="confirmDeleteCategory(category)"
                 class="btn btn-sm btn-danger"
                 :disabled="getProductCount(category.id) > 0"
+                :title="getProductCount(category.id) > 0 ? 'Cannot delete a category that has products. Move or delete the products first.' : 'Delete this category'"
               >
-                Delete
+                {{ getProductCount(category.id) > 0 ? `Has Products (${getProductCount(category.id)})` : 'Delete' }}
               </button>
             </div>
           </div>
@@ -162,6 +163,23 @@
                   <div class="action-buttons">
                     <button @click="editProduct(product)" class="btn btn-sm btn-secondary">
                       Edit
+                    </button>
+                    <button
+                      @click="toggleProductStatus(product)"
+                      :class="['btn', 'btn-sm', product.isActive ? 'btn-warning' : 'btn-success']"
+                      :disabled="isActionLoading(`toggleProduct-${product.id}`)"
+                    >
+                      <span v-if="isActionLoading(`toggleProduct-${product.id}`)" class="btn-spinner"></span>
+                      {{ product.isActive ? 'Disable' : 'Enable' }}
+                    </button>
+                    <button
+                      @click="toggleProductFeatured(product)"
+                      :class="['btn', 'btn-sm', product.isFeatured ? 'btn-warning' : 'btn-secondary']"
+                      :disabled="isActionLoading(`featuredProduct-${product.id}`)"
+                      :title="product.isFeatured ? 'Remove from homepage' : 'Feature on homepage'"
+                    >
+                      <span v-if="isActionLoading(`featuredProduct-${product.id}`)" class="btn-spinner"></span>
+                      {{ product.isFeatured ? '⭐ Unfeature' : '☆ Feature' }}
                     </button>
                     <button @click="confirmDeleteProduct(product)" class="btn btn-sm btn-danger">
                       Delete
@@ -237,7 +255,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="product in filteredInventoryProducts" :key="product.id" :class="getInventoryRowClass(product)">
+              <tr v-for="product in filteredInventoryProducts" :key="product.id" :class="getStockInfo(product).rowClass">
                 <td>
                   <span class="product-name-cell">{{ product.name }}</span>
                   <span v-if="!product.isActive" class="inactive-tag">Inactive</span>
@@ -267,8 +285,8 @@
                 </td>
                 <td>${{ product.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</td>
                 <td>
-                  <span v-if="inventoryEdits[product.id]?.costPrice" :class="['margin-badge', getMarginClass(product.price, inventoryEdits[product.id].costPrice)]">
-                    {{ getMarginLabel(product.price, inventoryEdits[product.id].costPrice) }}
+                  <span v-if="inventoryEdits[product.id]?.costPrice" :class="['margin-badge', getMarginInfo(product.price, inventoryEdits[product.id].costPrice).cssClass]">
+                    {{ getMarginInfo(product.price, inventoryEdits[product.id].costPrice).label }}
                   </span>
                   <span v-else class="text-muted">—</span>
                 </td>
@@ -291,8 +309,8 @@
                   />
                 </td>
                 <td>
-                  <span :class="['stock-badge', 'stock-' + getStockStatus(product.id)]">
-                    {{ getStockStatusLabel(product.id) }}
+                  <span :class="['stock-badge', 'stock-' + getStockInfo(product).status]">
+                    {{ getStockInfo(product).label }}
                   </span>
                 </td>
               </tr>
@@ -362,9 +380,9 @@
                   <td>{{ getCategoryName(p.categoryId) }}</td>
                   <td>${{ p.price.toFixed(2) }}</td>
                   <td>{{ p.costPrice ? '$' + Number(p.costPrice).toFixed(2) : '—' }}</td>
-                  <td>{{ getMarginLabel(p.price, p.costPrice ?? null) }}</td>
+                  <td>{{ getMarginInfo(p.price, p.costPrice ?? null).label }}</td>
                   <td>{{ p.stockQuantity }}</td>
-                  <td>{{ getStockStatusLabel(p.id) }}</td>
+                  <td>{{ getStockInfo(p).label }}</td>
                 </tr>
               </tbody>
             </table>
@@ -610,27 +628,6 @@
               💡 Save the product first to add images
             </div>
 
-            <!-- Product Options -->
-            <div class="form-section">
-              <h3 class="section-title">Product Options</h3>
-              
-              <div class="checkbox-group">
-                <label class="checkbox-label">
-                  <input v-model="productForm.isActive" type="checkbox" />
-                  <span class="checkbox-text">
-                    <strong>Active</strong> - Display product on the store
-                  </span>
-                </label>
-
-                <label class="checkbox-label">
-                  <input v-model="productForm.isFeatured" type="checkbox" />
-                  <span class="checkbox-text">
-                    <strong>Featured ⭐</strong> - Show on homepage
-                  </span>
-                </label>
-              </div>
-            </div>
-
             <!-- Stock & Inventory Section -->
             <div class="form-section">
               <h3 class="section-title">📊 Stock &amp; Inventory</h3>
@@ -794,12 +791,13 @@ import { logDebug, logError } from '@/services/logger'
 import { useToast } from '@/composables/useToast'
 import { useLoadingState } from '@/composables/useLoadingState'
 import { apiClient, apiGet, apiPost, apiPut, apiDelete } from '@/utils/apiClient'
-import { API_URL, getMediaUrl } from '@/utils/api-config'
+import { getMediaUrl } from '@/utils/api-config'
 
 interface Category {
   id: number
   name: string
   description: string
+  imageUrl?: string
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -922,29 +920,21 @@ const formatDate = (dateString: string) => {
 const loadData = async () => {
   await executeWithLoading(async () => {
     error.value = ''
-    
+
     try {
-      const [categoriesRes, productsRes] = await Promise.all([
-        fetch(`${API_URL}/categories?includeInactive=true`, {
-          headers: { 'Authorization': `Bearer ${authStore.token}` }
-        }),
-        fetch(`${API_URL}/products?includeInactive=true`, {
-          headers: { 'Authorization': `Bearer ${authStore.token}` }
-        })
+      const [categoriesData, productsJson] = await Promise.all([
+        apiGet('/categories?includeInactive=true'),
+        apiGet('/products?includeInactive=true')
       ])
 
-      if (!categoriesRes.ok) throw new Error('Failed to load categories')
-      if (!productsRes.ok) throw new Error('Failed to load products')
-
-      categories.value = await categoriesRes.json()
-      const productsJson = await productsRes.json()
+      categories.value = categoriesData
       products.value = productsJson.data ?? productsJson
-      
-      logDebug('Loaded products from API', { 
+
+      logDebug('Loaded products from API', {
         count: products.value.length,
         withSpecifications: products.value.filter((p: Product) => p.specifications).length
       });
-      
+
       syncInventoryEdits()
     } catch (err: any) {
       error.value = err.message || 'Failed to load data'
@@ -1020,7 +1010,9 @@ const toggleCategoryStatus = async (category: Category) => {
   await executeWithLoading(async () => {
     try {
       await apiPut(`/categories/${category.id}`, {
-        ...category,
+        name: category.name,
+        description: category.description,
+        imageUrl: category.imageUrl,
         isActive: !category.isActive
       })
 
@@ -1209,6 +1201,56 @@ const deleteProduct = async () => {
   }, 'deleteProduct')
 }
 
+const toggleProductStatus = async (product: Product) => {
+  await executeWithLoading(async () => {
+    try {
+      await apiPut(`/products/${product.id}`, {
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        categoryId: product.categoryId,
+        imageUrl: product.imageUrl,
+        isFeatured: product.isFeatured,
+        isActive: !product.isActive,
+        sku: product.sku,
+        stockQuantity: product.stockQuantity,
+        lowStockThreshold: product.lowStockThreshold,
+        costPrice: product.costPrice,
+        specifications: product.specifications
+      })
+      product.isActive = !product.isActive
+      toast.success('Product status updated')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update product status')
+    }
+  }, `toggleProduct-${product.id}`)
+}
+
+const toggleProductFeatured = async (product: Product) => {
+  await executeWithLoading(async () => {
+    try {
+      await apiPut(`/products/${product.id}`, {
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        categoryId: product.categoryId,
+        imageUrl: product.imageUrl,
+        isFeatured: !product.isFeatured,
+        isActive: product.isActive,
+        sku: product.sku,
+        stockQuantity: product.stockQuantity,
+        lowStockThreshold: product.lowStockThreshold,
+        costPrice: product.costPrice,
+        specifications: product.specifications
+      })
+      product.isFeatured = !product.isFeatured
+      toast.success(product.isFeatured ? 'Product featured on homepage' : 'Product removed from homepage')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update featured status')
+    }
+  }, `featuredProduct-${product.id}`)
+}
+
 // Specification management functions
 const addSpecification = () => {
   productForm.value.specifications.push({ key: '', value: '' })
@@ -1371,45 +1413,19 @@ const filteredInventoryProducts = computed(() => {
   return list
 })
 
-const getInventoryRowClass = (product: Product) => {
+const getStockInfo = (product: Product): { status: 'out' | 'low' | 'ok' | 'unknown'; label: string; rowClass: string } => {
   const e = inventoryEdits.value[product.id]
-  if (!e) return ''
-  if (e.stockQuantity === 0) return 'row-danger'
-  if (e.stockQuantity <= e.lowStockThreshold) return 'row-warning'
-  return ''
+  if (!e) return { status: 'unknown', label: '—', rowClass: '' }
+  if (e.stockQuantity === 0) return { status: 'out', label: '🔴 Out of Stock', rowClass: 'row-danger' }
+  if (e.stockQuantity <= e.lowStockThreshold) return { status: 'low', label: '🟡 Low Stock', rowClass: 'row-warning' }
+  return { status: 'ok', label: '🟢 In Stock', rowClass: '' }
 }
 
-const getStockStatus = (productId: number) => {
-  const e = inventoryEdits.value[productId]
-  if (!e) return 'unknown'
-  if (e.stockQuantity === 0) return 'out'
-  if (e.stockQuantity <= e.lowStockThreshold) return 'low'
-  return 'ok'
-}
-
-const getStockStatusLabel = (productId: number) => {
-  const s = getStockStatus(productId)
-  if (s === 'out') return '🔴 Out of Stock'
-  if (s === 'low') return '🟡 Low Stock'
-  return '🟢 In Stock'
-}
-
-const getMarginNum = (price: number, cost: number | null): number | null => {
-  if (!cost || cost <= 0) return null
-  return Math.round(((price - cost) / price) * 100)
-}
-
-const getMarginLabel = (price: number, cost: number | null) => {
-  const m = getMarginNum(price, cost)
-  return m === null ? '—' : m + '%'
-}
-
-const getMarginClass = (price: number, cost: number | null) => {
-  const m = getMarginNum(price, cost)
-  if (m === null) return ''
-  if (m >= 30) return 'margin-good'
-  if (m >= 15) return 'margin-ok'
-  return 'margin-low'
+const getMarginInfo = (price: number, cost: number | null): { value: number | null; label: string; cssClass: string } => {
+  if (!cost || cost <= 0) return { value: null, label: '—', cssClass: '' }
+  const m = Math.round(((price - cost) / price) * 100)
+  const cssClass = m >= 30 ? 'margin-good' : m >= 15 ? 'margin-ok' : 'margin-low'
+  return { value: m, label: m + '%', cssClass }
 }
 
 const saveInventoryRow = async (productId: number) => {
@@ -1535,21 +1551,6 @@ onMounted(() => {
 .loading-state, .error-state {
   text-align: center;
   padding: 4rem 2rem;
-}
-
-.spinner {
-  border: 3px solid #f3f4f6;
-  border-top: 3px solid #4f46e5;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 /* Categories Grid */

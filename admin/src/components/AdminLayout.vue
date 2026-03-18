@@ -39,12 +39,17 @@
             </router-link>
           </li>
           <li class="nav-item">
+            <router-link to="/live-chat" class="nav-link" active-class="active">
+              💬 Live Chat
+            </router-link>
+          </li>
+          <li class="nav-item">
             <router-link to="/media" class="nav-link" active-class="active">
               📁 Media Library
             </router-link>
           </li>
           <li class="nav-item">
-            <router-link to="/music" class="nav-link" active-class="active" style="padding-left: 2rem;">
+            <router-link to="/music" class="nav-link nav-sub" active-class="active">
               🎵 Music Player
             </router-link>
           </li>
@@ -87,11 +92,18 @@ const authStore = useAuthStore()
 
 const handleLogout = () => {
   authStore.logout()
-  // Redirect to main site instead of admin login
-  window.location.href = 'http://localhost:3000'
+  window.close()
+  // Fallback: if the browser blocked window.close() (tab was navigated directly),
+  // redirect to login after a short delay
+  setTimeout(() => {
+    window.location.href = '/login'
+  }, 300)
 }
 </script>
 
 <style scoped>
 /* Styles are already in the main CSS file */
+.nav-sub {
+  padding-left: 2rem;
+}
 </style>

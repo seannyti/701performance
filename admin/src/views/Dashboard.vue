@@ -20,7 +20,7 @@
 
       <!-- Loading skeleton -->
       <div v-if="isLoading && !stats" class="stats-grid">
-        <div v-for="i in 4" :key="i" class="stat-card skeleton" />
+        <div v-for="i in 6" :key="i" class="stat-card skeleton" />
       </div>
 
       <!-- Error banner -->
@@ -65,6 +65,24 @@
               <span class="stat-value">{{ stats.totalCategories }}</span>
               <span class="stat-label">Active Categories</span>
               <span class="stat-sub">Product groupings</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background: #fef3c7; color: #d97706;">🛒</div>
+            <div class="stat-info">
+              <span class="stat-value">{{ stats.totalOrders }}</span>
+              <span class="stat-label">Total Orders</span>
+              <span class="stat-sub">{{ stats.pendingOrders }} pending · ${{ stats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} revenue</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background: #f0fdf4; color: #16a34a;">📧</div>
+            <div class="stat-info">
+              <span class="stat-value">{{ stats.newInquiries }}</span>
+              <span class="stat-label">New Inquiries</span>
+              <span class="stat-sub">Unread contact submissions</span>
             </div>
           </div>
         </div>
@@ -233,17 +251,32 @@ import { useAuthStore } from '@/stores/auth'
 import type { DashboardStats } from '@/types'
 import { logError, logDebug } from '@/services/logger'
 import { DASHBOARD_STATS_TIMEOUT_MS } from '@/constants'
-
-const API_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5226'}/api/v1`
+import { apiGet } from '@/utils/apiClient'
 
 const authStore = useAuthStore()
+
+interface HealthEndpoint {
+  endpoint: string
+  path: string
+  healthy: boolean
+  responseTime: number
+  message?: string
+  error?: string
+}
+interface HealthReport {
+  endpoints: HealthEndpoint[]
+  total: number
+  healthy: number
+  unhealthy: number
+  checkedAt: string
+}
 
 const stats = ref<DashboardStats | null>(null)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
 // Health check state
-const healthStatus = ref<any | null>(null)
+const healthStatus = ref<HealthReport | null>(null)
 const isCheckingHealth = ref(false)
 
 const healthSummary = computed(() => {
@@ -266,17 +299,9 @@ const loadDashboardStats = async () => {
   error.value = null
 
   try {
-    logDebug('Loading dashboard stats', { url: `${API_URL}/admin/dashboard/stats` })
+    logDebug('Loading dashboard stats')
 
-    const response = await fetch(`${API_URL}/admin/dashboard/stats`, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-
-    if (!response.ok) {
-      throw new Error(`Server responded with ${response.status}`)
-    }
-
-    const body = await response.json()
+    const body = await apiGet<{ data: DashboardStats }>('/admin/dashboard/stats')
     stats.value = body.data
     logDebug('Dashboard stats loaded', { stats: stats.value })
   } catch (err) {
@@ -320,68 +345,41 @@ const runHealthCheck = async () => {
     { path: '/api/v1/admin/media', name: 'Media Library', requiresAuth: true },
   ]
   
-  const results = []
-  const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5226'
-  
-  for (const endpoint of endpoints) {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5226'
+
+  const results = await Promise.all(endpoints.map(async (endpoint): Promise<HealthEndpoint> => {
     const startTime = performance.now()
     try {
       const headers: Record<string, string> = {}
       if (endpoint.requiresAuth && authStore.token) {
         headers['Authorization'] = `Bearer ${authStore.token}`
       }
-      
       const response = await fetch(`${baseUrl}${endpoint.path}`, {
         method: 'GET',
         headers,
         signal: AbortSignal.timeout(DASHBOARD_STATS_TIMEOUT_MS)
       })
-      
-      const endTime = performance.now()
-      const responseTime = Math.round(endTime - startTime)
-      
+      const responseTime = Math.round(performance.now() - startTime)
       if (response.ok) {
-        results.push({
-          endpoint: endpoint.name,
-          path: endpoint.path,
-          healthy: true,
-          responseTime,
-          message: `HTTP ${response.status}`
-        })
+        return { endpoint: endpoint.name, path: endpoint.path, healthy: true, responseTime, message: `HTTP ${response.status}` }
       } else {
-        results.push({
-          endpoint: endpoint.name,
-          path: endpoint.path,
-          healthy: false,
-          responseTime,
-          error: `HTTP ${response.status} ${response.statusText}`
-        })
+        return { endpoint: endpoint.name, path: endpoint.path, healthy: false, responseTime, error: `HTTP ${response.status} ${response.statusText}` }
       }
     } catch (err: any) {
-      const endTime = performance.now()
-      const responseTime = Math.round(endTime - startTime)
-      
-      results.push({
-        endpoint: endpoint.name,
-        path: endpoint.path,
-        healthy: false,
-        responseTime,
-        error: err.name === 'TimeoutError' ? 'Request timeout' : err.message || 'Network error'
-      })
+      const responseTime = Math.round(performance.now() - startTime)
+      return { endpoint: endpoint.name, path: endpoint.path, healthy: false, responseTime, error: err.name === 'TimeoutError' ? 'Request timeout' : err.message || 'Network error' }
     }
-  }
-  
+  }))
+
   const healthy = results.filter(r => r.healthy).length
-  const unhealthy = results.length - healthy
-  
   healthStatus.value = {
     endpoints: results,
     total: results.length,
     healthy,
-    unhealthy,
+    unhealthy: results.length - healthy,
     checkedAt: new Date().toISOString()
   }
-  
+
   isCheckingHealth.value = false
 }
 

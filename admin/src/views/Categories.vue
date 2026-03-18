@@ -163,10 +163,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
-import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useLoadingState } from '@/composables/useLoadingState'
-import { API_URL } from '@/utils/api-config'
+import { apiGet, apiPost, apiPut, apiDelete } from '@/utils/apiClient'
+import { logError } from '@/services/logger'
 
 interface Category {
   id: number
@@ -184,7 +184,6 @@ interface Product {
   isActive: boolean
 }
 
-const authStore = useAuthStore()
 const toast = useToast()
 const { isLoading, executeWithLoading, isActionLoading } = useLoadingState()
 
@@ -208,9 +207,17 @@ const formErrors = ref({
   name: ''
 })
 
-const getProductCount = (categoryId: number) => {
-  return products.value.filter(p => p.categoryId === categoryId && p.isActive).length
-}
+const productCountMap = computed(() => {
+  const map = new Map<number, number>()
+  for (const p of products.value) {
+    if (p.isActive) {
+      map.set(p.categoryId, (map.get(p.categoryId) ?? 0) + 1)
+    }
+  }
+  return map
+})
+
+const getProductCount = (categoryId: number) => productCountMap.value.get(categoryId) ?? 0
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -223,23 +230,15 @@ const formatDate = (dateString: string) => {
 const loadCategories = async () => {
   await executeWithLoading(async () => {
     error.value = ''
-    
     try {
-      const [categoriesRes, productsRes] = await Promise.all([
-        fetch(`${API_URL}/categories?includeInactive=true`, {
-          headers: { 'Authorization': `Bearer ${authStore.token}` }
-        }),
-        fetch(`${API_URL}/products`, {
-          headers: { 'Authorization': `Bearer ${authStore.token}` }
-        })
+      const [cats, prodsData] = await Promise.all([
+        apiGet<Category[]>('/categories?includeInactive=true'),
+        apiGet<any>('/products')
       ])
-
-      if (!categoriesRes.ok) throw new Error('Failed to load categories')
-      if (!productsRes.ok) throw new Error('Failed to load products')
-
-      categories.value = await categoriesRes.json()
-      products.value = await productsRes.json()
+      categories.value = cats
+      products.value = Array.isArray(prodsData) ? prodsData : (prodsData.products ?? [])
     } catch (err: any) {
+      logError('Failed to load categories', err)
       error.value = err.message || 'Failed to load data'
     }
   })
@@ -289,34 +288,19 @@ const validateForm = () => {
 
 const saveCategory = async () => {
   if (!validateForm()) return
-  
   await executeWithLoading(async () => {
     formError.value = ''
-    
     try {
-      const url = editingCategory.value 
-        ? `${API_URL}/categories/${editingCategory.value.id}`
-        : `${API_URL}/categories`
-      
-      const method = editingCategory.value ? 'PUT' : 'POST'
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authStore.token}`
-        },
-        body: JSON.stringify(form.value)
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to save category')
+      if (editingCategory.value) {
+        await apiPut(`/categories/${editingCategory.value.id}`, form.value)
+      } else {
+        await apiPost('/categories', form.value)
       }
-
+      toast.saveSuccess('Category')
       await loadCategories()
       closeModal()
     } catch (err: any) {
+      logError('Failed to save category', err)
       formError.value = err.message || 'Failed to save category'
     }
   }, 'saveCategory')
@@ -325,23 +309,11 @@ const saveCategory = async () => {
 const toggleCategoryStatus = async (category: Category) => {
   await executeWithLoading(async () => {
     try {
-      const response = await fetch(`${API_URL}/categories/${category.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authStore.token}`
-        },
-        body: JSON.stringify({
-          ...category,
-          isActive: !category.isActive
-        })
-      })
-
-      if (!response.ok) throw new Error('Failed to update category status')
-
+      await apiPut(`/categories/${category.id}`, { ...category, isActive: !category.isActive })
       await loadCategories()
       toast.success('Category status updated')
     } catch (err: any) {
+      logError('Failed to update category', err)
       toast.error(err.message || 'Failed to update category')
     }
   }, `toggleCategory-${category.id}`)
@@ -354,26 +326,15 @@ const confirmDelete = (category: Category) => {
 
 const deleteCategory = async () => {
   if (!categoryToDelete.value) return
-  
   await executeWithLoading(async () => {
     try {
-      const response = await fetch(`${API_URL}/categories/${categoryToDelete.value.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`
-        }
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to delete category')
-      }
-
+      await apiDelete(`/categories/${categoryToDelete.value!.id}`)
       await loadCategories()
       showDeleteModal.value = false
       categoryToDelete.value = null
       toast.deleteSuccess('Category')
     } catch (err: any) {
+      logError('Failed to delete category', err)
       toast.error(err.message || 'Failed to delete category')
     }
   }, 'deleteCategory')
@@ -414,21 +375,6 @@ onMounted(() => {
 .loading-state, .error-state {
   text-align: center;
   padding: 4rem 2rem;
-}
-
-.spinner {
-  border: 3px solid #f3f4f6;
-  border-top: 3px solid #4f46e5;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .categories-grid {

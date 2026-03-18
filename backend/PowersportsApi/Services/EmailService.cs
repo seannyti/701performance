@@ -29,7 +29,12 @@ public class EmailService
 
         string host = settings.GetValueOrDefault("smtp_host", "");
         string fromEmail = settings.GetValueOrDefault("smtp_from_email", "");
+        string username = settings.GetValueOrDefault("smtp_username", "");
         bool enabled = settings.GetValueOrDefault("smtp_enabled", "false") == "true";
+
+        // Fall back to username as the from address if smtp_from_email is not set
+        if (string.IsNullOrWhiteSpace(fromEmail))
+            fromEmail = username;
 
         if (!enabled || string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(fromEmail))
             return null;
@@ -227,6 +232,43 @@ You can reply directly to <a href='mailto:{fromEmail}'>{fromEmail}</a></p>
 </html>";
 
             var sent = await SendEmailAsync(contactEmail, siteName, emailSubject, html);
+
+            // Send confirmation email to the submitter
+            if (sent)
+            {
+                var truncatedMessage = message.Length > 300
+                    ? message.Substring(0, 300) + "..."
+                    : message;
+
+                var confirmationSubject = $"We received your message — {siteName}";
+                var confirmationHtml = $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'></head>
+<body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;'>
+  <div style='background: linear-gradient(135deg, #ff6b35, #f7931e); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;'>
+    <h1 style='color: white; margin: 0; font-size: 24px;'>Message Received!</h1>
+  </div>
+  <div style='background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #eee;'>
+    <p style='font-size: 16px;'>Hi {fromName},</p>
+    <p style='font-size: 16px;'>Thank you for contacting us. We've received your message and will get back to you as soon as possible.</p>
+    <div style='background: white; padding: 20px; border-radius: 6px; border: 1px solid #ddd; margin: 20px 0;'>
+      <p style='font-size: 14px; font-weight: bold; margin-bottom: 8px; color: #555;'>Your message:</p>
+      <p style='font-size: 14px; color: #666; white-space: pre-wrap;'>{truncatedMessage}</p>
+    </div>
+    <hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>
+    <p style='font-size: 12px; color: #999;'>This is an automated confirmation from {siteName}. Please do not reply to this email.</p>
+  </div>
+</body>
+</html>";
+
+                // Log warning if confirmation fails but don't affect the main response
+                var confirmationSent = await SendEmailAsync(fromEmail, fromName, confirmationSubject, confirmationHtml);
+                if (!confirmationSent)
+                {
+                    _logger.LogWarning("Confirmation email to submitter {Email} could not be sent", fromEmail);
+                }
+            }
 
             return sent
                 ? (true, "Message sent successfully! We'll get back to you soon.")
