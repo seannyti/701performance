@@ -30,11 +30,14 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        VITE_API_URL: http://23.239.26.52
-        VITE_ADMIN_URL: http://23.239.26.52:81
+        VITE_API_URL: https://minotperformancepowersports.com
+        VITE_ADMIN_URL: https://minotperformancepowersports.com:444
     image: app-frontend
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - api
     restart: unless-stopped
@@ -44,9 +47,12 @@ services:
       context: .
       dockerfile: Dockerfile.admin
       args:
-        VITE_API_URL: http://23.239.26.52:81
+        VITE_API_URL: https://minotperformancepowersports.com:444
     ports:
-      - "81:80"
+      - "81:81"
+      - "444:444"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - api
     restart: unless-stopped
