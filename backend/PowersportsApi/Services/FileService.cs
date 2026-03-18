@@ -109,12 +109,16 @@ public class FileService
                 return false;
             }
 
-            // Check magic numbers for common image formats
+            // Check magic numbers for common image and video formats
             return extension switch
             {
                 ".jpg" or ".jpeg" => buffer[0] == 0xFF && buffer[1] == 0xD8 && buffer[2] == 0xFF,
                 ".png" => buffer[0] == 0x89 && buffer[1] == 0x50 && buffer[2] == 0x4E && buffer[3] == 0x47,
                 ".webp" => buffer[0] == 0x52 && buffer[1] == 0x49 && buffer[2] == 0x46 && buffer[3] == 0x46,
+                // MP4: bytes 4-7 are "ftyp" box type
+                ".mp4" => bytesRead >= 8 && buffer[4] == 0x66 && buffer[5] == 0x74 && buffer[6] == 0x79 && buffer[7] == 0x70,
+                // WebM/MKV: starts with EBML magic bytes 0x1A 0x45 0xDF 0xA3
+                ".webm" => bytesRead >= 4 && buffer[0] == 0x1A && buffer[1] == 0x45 && buffer[2] == 0xDF && buffer[3] == 0xA3,
                 _ => false
             };
         }

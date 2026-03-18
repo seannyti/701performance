@@ -1,8 +1,31 @@
 <template>
   <div class="home">
     <!-- Hero Section -->
-    <section class="hero">
-      <div 
+    <section class="hero" :class="{ 'hero--video': heroVideoEnabled && heroVideoUrl }">
+      <!-- YouTube video background -->
+      <iframe
+        v-if="heroVideoEnabled && heroVideoUrl && isYouTubeUrl(heroVideoUrl) && youTubeEmbedUrl"
+        class="hero-video hero-video--youtube"
+        :src="youTubeEmbedUrl"
+        frameborder="0"
+        allow="autoplay; encrypted-media"
+        allowfullscreen
+        title="Hero background video"
+      ></iframe>
+
+      <!-- MP4 video background -->
+      <video
+        v-else-if="heroVideoEnabled && heroVideoUrl && !isYouTubeUrl(heroVideoUrl)"
+        class="hero-video hero-video--mp4"
+        autoplay
+        muted
+        loop
+        playsinline
+      >
+        <source :src="heroVideoUrl" type="video/mp4" />
+      </video>
+
+      <div
         class="hero-background"
         :style="parallaxEnabled ? { transform: `translateY(${parallaxOffset}px)` } : {}"
       >
@@ -209,6 +232,26 @@ const router = useRouter();
 const { parallaxOffset } = useParallax(0.5);
 const parallaxEnabled = computed(() => getSetting('theme_parallax_enabled', 'false') === 'true');
 
+// Hero video
+const heroVideoEnabled = computed(() => getSetting('hero_video_enabled', 'false') === 'true');
+const heroVideoUrl = computed(() => getSetting('hero_video_url', ''));
+
+const isYouTubeUrl = (url: string) => /youtube\.com|youtu\.be/.test(url);
+
+const heroVideoStart = computed(() => parseInt(getSetting('hero_video_start', '0')) || 0);
+
+const youTubeEmbedUrl = computed(() => {
+  const url = heroVideoUrl.value;
+  if (!url) return '';
+  let videoId = '';
+  const watchMatch = url.match(/[?&]v=([^&]+)/);
+  const shortMatch = url.match(/youtu\.be\/([^?]+)/);
+  videoId = watchMatch?.[1] ?? shortMatch?.[1] ?? '';
+  if (!videoId) return '';
+  const start = heroVideoStart.value > 0 ? `&start=${heroVideoStart.value}` : '';
+  return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&controls=0&playlist=${videoId}&playsinline=1&disablekb=1&modestbranding=1${start}`;
+});
+
 // Reactive data
 const featuredProducts = ref<Product[]>([]);
 const categories = ref<Category[]>([]);
@@ -344,6 +387,32 @@ onMounted(() => {
   padding: 0.5rem 0 0 0 !important;
 }
 
+.hero--video {
+  min-height: 70vh;
+}
+
+.hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-video--youtube {
+  /* Scale up to cover letterboxing */
+  width: 177.78vh; /* 16/9 * 100vh */
+  min-width: 100%;
+  height: 56.25vw; /* 9/16 * 100vw */
+  min-height: 100%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .hero-background {
   position: relative;
   width: 100%;
@@ -358,6 +427,15 @@ onMounted(() => {
   url('https://images.unsplash.com/photo-1558618047-6c0c841469ed?w=1200&h=800&fit=crop') center/cover;
   padding: 4rem 0;
   color: white;
+  z-index: 1;
+}
+
+.hero--video .hero-background {
+  min-height: 70vh;
+  background: linear-gradient(
+    rgba(0, 0, 0, 0.55),
+    rgba(0, 0, 0, 0.45)
+  );
 }
 
 .hero-content {

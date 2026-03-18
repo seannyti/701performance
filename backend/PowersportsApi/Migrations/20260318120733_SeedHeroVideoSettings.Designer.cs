@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PowersportsApi.Data;
 
@@ -11,9 +12,11 @@ using PowersportsApi.Data;
 namespace PowersportsApi.Migrations
 {
     [DbContext(typeof(PowersportsDbContext))]
-    partial class PowersportsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260318120733_SeedHeroVideoSettings")]
+    partial class SeedHeroVideoSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -142,13 +142,13 @@ const onViewDetails = () => {
 .product-name {
   font-size: 1.25rem;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-primary, #ffffff);
   margin: 0 0 0.75rem 0;
   line-height: 1.4;
 }
 
 .product-description {
-  color: #666;
+  color: var(--color-text-secondary, #C8C8C8);
   line-height: 1.6;
   margin: 0 0 1.5rem 0;
   flex: 1;

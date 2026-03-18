@@ -299,1492 +299,211 @@
 
         <!-- Theme & Design Tab -->
         <div v-if="activeTab === 'theme'" class="tab-content">
-          
+
           <!-- Theme Presets Section -->
           <div class="settings-card theme-presets-section">
             <div class="section-header-collapsible" @click="toggleSection('theme-presets')">
               <h3 class="section-header">✨ Quick Theme Presets</h3>
               <span class="collapse-icon">{{ expandedSections['theme-presets'] ? '▼' : '▶' }}</span>
             </div>
-            
+
             <div v-show="expandedSections['theme-presets']" class="collapsible-content">
-            <p class="section-description">Choose a pre-configured theme to instantly transform your site's appearance. You can further customize any preset after applying it.</p>
-            
-            <!-- Preset Category Tabs -->
-            <div class="preset-tabs">
-              <button 
-                class="preset-tab" 
-                :class="{ active: activePresetTab === 'general' }"
-                @click="activePresetTab = 'general'"
-              >
-                🎨 General Themes
-              </button>
-              <button 
-                class="preset-tab" 
-                :class="{ active: activePresetTab === 'motorsports' }"
-                @click="activePresetTab = 'motorsports'"
-              >
-                🏍️ Motorsports Themes
-              </button>
-            </div>
+              <p class="section-description">Click a preset to apply it instantly. Changes broadcast live via SignalR — no page reload needed.</p>
 
-            <div class="theme-presets-grid">
-              <div 
-                v-for="preset in filteredPresets" 
-                :key="preset.name"
-                class="theme-preset-card"
-                :class="{ active: isPresetActive(preset) }"
-                @click="applyThemePreset(preset)"
-              >
-                <div class="preset-active-badge" v-if="isPresetActive(preset)">
-                  ✓ Active
-                </div>
-                <div class="preset-icon">{{ preset.icon }}</div>
-                <h4 class="preset-name">{{ preset.name }}</h4>
-                <p class="preset-description">{{ preset.description }}</p>
-                <div class="preset-preview-colors">
-                  <div 
-                    class="preview-color-dot" 
-                    :style="{ backgroundColor: preset.preview.primary }"
-                    :title="`Primary: ${preset.preview.primary}`"
-                  ></div>
-                  <div 
-                    class="preview-color-dot" 
-                    :style="{ backgroundColor: preset.preview.secondary }"
-                    :title="`Secondary: ${preset.preview.secondary}`"
-                  ></div>
-                  <div 
-                    class="preview-color-dot" 
-                    :style="{ backgroundColor: preset.preview.bg }"
-                    :title="`Background: ${preset.preview.bg}`"
-                  ></div>
-                </div>
-                <div class="preset-apply-overlay">
-                  <span class="icon">✨</span> Apply Theme
+              <div class="preset-tabs">
+                <button class="preset-tab" :class="{ active: activePresetTab === 'general' }" @click="activePresetTab = 'general'">🎨 General Themes</button>
+                <button class="preset-tab" :class="{ active: activePresetTab === 'motorsports' }" @click="activePresetTab = 'motorsports'">🏍️ Motorsports Themes</button>
+              </div>
+
+              <div class="theme-presets-grid">
+                <div
+                  v-for="preset in filteredPresets"
+                  :key="preset.name"
+                  class="theme-preset-card"
+                  :class="{ active: themeForm.presetName === preset.name, loading: isActionLoading(`preset-${preset.name}`) }"
+                  @click="applyThemePreset(preset)"
+                >
+                  <div class="preset-active-badge" v-if="themeForm.presetName === preset.name">✓ Active</div>
+                  <div v-if="isActionLoading(`preset-${preset.name}`)" class="preset-loading-overlay">
+                    <span class="btn-spinner"></span>
+                  </div>
+                  <div class="preset-icon">{{ preset.icon }}</div>
+                  <h4 class="preset-name">{{ preset.name }}</h4>
+                  <p class="preset-description">{{ preset.description }}</p>
+                  <div class="preset-preview-colors">
+                    <div class="preview-color-dot" :style="{ backgroundColor: preset.preview.primary }"></div>
+                    <div class="preview-color-dot" :style="{ backgroundColor: preset.preview.secondary }"></div>
+                    <div class="preview-color-dot" :style="{ backgroundColor: preset.preview.bg }"></div>
+                  </div>
+                  <div class="preset-apply-overlay"><span class="icon">✨</span> Apply Theme</div>
                 </div>
               </div>
             </div>
-            </div> <!-- End collapsible-content -->
           </div>
 
-          <!-- Color Scheme Section -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('color-palette')">
-              <h3 class="section-header">🎨 Color Palette</h3>
-              <span class="collapse-icon">{{ expandedSections['color-palette'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['color-palette']" class="collapsible-content">
-            <!-- Primary Colors -->
-            <div class="subsection">
-              <h4 class="subsection-title">Brand Colors</h4>
-              <div class="settings-grid color-grid">
-                <div class="form-group">
-                  <label class="form-label">Primary Color</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_primary_color').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_primary_color').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#6366f1"
-                    />
-                  </div>
-                  <p class="form-hint">Main brand color for buttons, links, and accents</p>
+          <!-- Colors -->
+          <div class="settings-card theme-section">
+            <h3 class="section-header">🎨 Colors</h3>
+            <div class="settings-grid color-grid">
+              <div class="form-group">
+                <label class="form-label">Primary</label>
+                <div class="color-input-group">
+                  <input v-model="themeForm.primaryColor" type="color" class="color-picker" />
+                  <input v-model="themeForm.primaryColor" type="text" class="form-control" />
                 </div>
-
-                <div class="form-group">
-                  <label class="form-label">Secondary Color</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_secondary_color').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_secondary_color').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#ec4899"
-                    />
-                  </div>
-                  <p class="form-hint">Secondary accent color</p>
+                <p class="form-hint">Buttons, links, accents</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Secondary</label>
+                <div class="color-input-group">
+                  <input v-model="themeForm.secondaryColor" type="color" class="color-picker" />
+                  <input v-model="themeForm.secondaryColor" type="text" class="form-control" />
                 </div>
-
-                <div class="form-group">
-                  <label class="form-label">Accent Color</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_accent_color').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_accent_color').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#f59e0b"
-                    />
-                  </div>
-                  <p class="form-hint">Highlight and call-to-action color</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Accent</label>
+                <div class="color-input-group">
+                  <input v-model="themeForm.accentColor" type="color" class="color-picker" />
+                  <input v-model="themeForm.accentColor" type="text" class="form-control" />
                 </div>
-
-                <div class="form-group">
-                  <label class="form-label">Success Color</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_success_color').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_success_color').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#10b981"
-                    />
-                  </div>
-                  <p class="form-hint">Positive status and confirmation color</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Page Background</label>
+                <div class="color-input-group">
+                  <input v-model="themeForm.bgColor" type="color" class="color-picker" />
+                  <input v-model="themeForm.bgColor" type="text" class="form-control" />
                 </div>
-
-                <div class="form-group">
-                  <label class="form-label">Warning Color</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_warning_color').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_warning_color').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#f59e0b"
-                    />
-                  </div>
-                  <p class="form-hint">Warning and caution color</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Card Background</label>
+                <div class="color-input-group">
+                  <input v-model="themeForm.bgSecondary" type="color" class="color-picker" />
+                  <input v-model="themeForm.bgSecondary" type="text" class="form-control" />
                 </div>
-
-                <div class="form-group">
-                  <label class="form-label">Danger Color</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_danger_color').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_danger_color').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#ef4444"
-                    />
-                  </div>
-                  <p class="form-hint">Error and destructive action color</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Primary Text</label>
+                <div class="color-input-group">
+                  <input v-model="themeForm.textPrimary" type="color" class="color-picker" />
+                  <input v-model="themeForm.textPrimary" type="text" class="form-control" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Secondary Text</label>
+                <div class="color-input-group">
+                  <input v-model="themeForm.textSecondary" type="color" class="color-picker" />
+                  <input v-model="themeForm.textSecondary" type="text" class="form-control" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Header Background</label>
+                <div class="color-input-group">
+                  <input v-model="themeForm.headerBg" type="color" class="color-picker" />
+                  <input v-model="themeForm.headerBg" type="text" class="form-control" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Footer Background</label>
+                <div class="color-input-group">
+                  <input v-model="themeForm.footerBg" type="color" class="color-picker" />
+                  <input v-model="themeForm.footerBg" type="text" class="form-control" />
                 </div>
               </div>
             </div>
+          </div>
 
-            <!-- Background Colors -->
-            <div class="subsection">
-              <h4 class="subsection-title">Background Colors</h4>
-              <div class="settings-grid color-grid">
-                <div class="form-group">
-                  <label class="form-label">Page Background</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_bg_color').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_bg_color').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#ffffff"
-                    />
-                  </div>
-                  <p class="form-hint">Main page background color</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Secondary Background</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_bg_secondary').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_bg_secondary').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#f9fafb"
-                    />
-                  </div>
-                  <p class="form-hint">Cards and section backgrounds</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Muted Background</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_bg_muted').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_bg_muted').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#f3f4f6"
-                    />
-                  </div>
-                  <p class="form-hint">Subtle backgrounds and hover states</p>
-                </div>
+          <!-- Typography -->
+          <div class="settings-card theme-section">
+            <h3 class="section-header">🔤 Typography</h3>
+            <div class="settings-grid">
+              <div class="form-group">
+                <label class="form-label">Heading Font</label>
+                <select v-model="themeForm.fontHeading" class="form-control">
+                  <option value="'Rajdhani', 'Inter', system-ui, sans-serif">Rajdhani (Motorsports)</option>
+                  <option value="'Inter', system-ui, sans-serif">Inter (Modern)</option>
+                  <option value="'Montserrat', 'Inter', system-ui, sans-serif">Montserrat (Bold)</option>
+                  <option value="'Oswald', 'Inter', system-ui, sans-serif">Oswald (Industrial)</option>
+                  <option value="'Bebas Neue', 'Inter', system-ui, sans-serif">Bebas Neue (Display)</option>
+                  <option value="Georgia, serif">Georgia (Classic Serif)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Body Font</label>
+                <select v-model="themeForm.fontBody" class="form-control">
+                  <option value="'Inter', system-ui, sans-serif">Inter</option>
+                  <option value="'Roboto', system-ui, sans-serif">Roboto</option>
+                  <option value="system-ui, sans-serif">System UI</option>
+                  <option value="Georgia, serif">Georgia</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Base Font Size (px)</label>
+                <input v-model="themeForm.fontSizeBase" type="number" class="form-control" min="12" max="24" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Heading Weight</label>
+                <select v-model="themeForm.fontWeightHeading" class="form-control">
+                  <option value="600">Semi-Bold (600)</option>
+                  <option value="700">Bold (700)</option>
+                  <option value="800">Extra Bold (800)</option>
+                  <option value="900">Black (900)</option>
+                </select>
               </div>
             </div>
+          </div>
 
-            <!-- Text Colors -->
-            <div class="subsection">
-              <h4 class="subsection-title">Text Colors</h4>
-              <div class="settings-grid color-grid">
-                <div class="form-group">
-                  <label class="form-label">Primary Text</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_text_primary').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_text_primary').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#111827"
-                    />
-                  </div>
-                  <p class="form-hint">Main body text color</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Secondary Text</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_text_secondary').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_text_secondary').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#6b7280"
-                    />
-                  </div>
-                  <p class="form-hint">Descriptions and less prominent text</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Muted Text</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_text_muted').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_text_muted').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#9ca3af"
-                    />
-                  </div>
-                  <p class="form-hint">Hints and subtle information</p>
-                </div>
+          <!-- Style Options -->
+          <div class="settings-card theme-section">
+            <h3 class="section-header">🎯 Style</h3>
+            <div class="settings-grid">
+              <div class="form-group">
+                <label class="form-label">Corner Style</label>
+                <select v-model="themeForm.cornerStyle" class="form-control">
+                  <option value="sharp">Sharp (0px)</option>
+                  <option value="rounded">Rounded (8px)</option>
+                  <option value="extra-rounded">Extra Rounded (16px)</option>
+                  <option value="pill">Pill (999px)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Button Text Transform</label>
+                <select v-model="themeForm.buttonTextTransform" class="form-control">
+                  <option value="none">Normal</option>
+                  <option value="uppercase">UPPERCASE</option>
+                  <option value="capitalize">Capitalize</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Heading Shadow</label>
+                <select v-model="themeForm.headingShadow" class="form-control">
+                  <option value="none">None</option>
+                  <option value="subtle">Subtle</option>
+                  <option value="glow">Glow</option>
+                  <option value="strong">Strong</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Letter Spacing</label>
+                <select v-model="themeForm.letterSpacing" class="form-control">
+                  <option value="tight">Tight</option>
+                  <option value="normal">Normal</option>
+                  <option value="wide">Wide</option>
+                  <option value="wider">Wider</option>
+                </select>
               </div>
             </div>
+          </div>
 
-            <!-- Border Colors -->
-            <div class="subsection">
-              <h4 class="subsection-title">Border Colors</h4>
-              <div class="settings-grid color-grid">
-                <div class="form-group">
-                  <label class="form-label">Default Border</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_border_color').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_border_color').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#e5e7eb"
-                    />
-                  </div>
-                  <p class="form-hint">Standard border color</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Accent Border</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_border_accent').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_border_accent').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#d1d5db"
-                    />
-                  </div>
-                  <p class="form-hint">Highlighted border color</p>
-                </div>
-              </div>
-            </div>
-
-            <button @click="saveSection(['theme_primary_color', 'theme_secondary_color', 'theme_accent_color', 'theme_success_color', 'theme_warning_color', 'theme_danger_color', 'theme_bg_color', 'theme_bg_secondary', 'theme_bg_muted', 'theme_text_primary', 'theme_text_secondary', 'theme_text_muted', 'theme_border_color', 'theme_border_accent'], 'theme')" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Color Scheme' }}
+          <!-- Action Row -->
+          <div class="theme-action-row">
+            <button @click="saveTheme" class="btn btn-primary" :disabled="isActionLoading('save-theme')">
+              <span v-if="isActionLoading('save-theme')" class="btn-spinner"></span>
+              {{ isActionLoading('save-theme') ? 'Saving...' : '💾 Save Theme' }}
             </button>
-          </div>
-          </div>
-
-          <!-- Typography Section -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('typography')">
-              <h3 class="section-header">✍️ Typography</h3>
-              <span class="collapse-icon">{{ expandedSections['typography'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['typography']" class="collapsible-content">
-            <!-- Font Families -->
-            <div class="subsection">
-              <h4 class="subsection-title">Font Families</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Heading Font</label>
-                  <select v-model="getSetting('theme_font_heading').value" class="form-control">
-                    <option value="'Inter', system-ui, sans-serif">Inter (Default)</option>
-                    <option value="'Roboto', sans-serif">Roboto</option>
-                    <option value="'Poppins', sans-serif">Poppins</option>
-                    <option value="'Montserrat', sans-serif">Montserrat</option>
-                    <option value="'Open Sans', sans-serif">Open Sans</option>
-                    <option value="'Lato', sans-serif">Lato</option>
-                    <option value="'Raleway', sans-serif">Raleway</option>
-                    <option value="'Playfair Display', serif">Playfair Display</option>
-                    <option value="'Merriweather', serif">Merriweather</option>
-                    <option value="Georgia, serif">Georgia</option>
-                  </select>
-                  <p class="form-hint">Font for headings (H1-H6)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Body Font</label>
-                  <select v-model="getSetting('theme_font_body').value" class="form-control">
-                    <option value="'Inter', system-ui, sans-serif">Inter (Default)</option>
-                    <option value="'Roboto', sans-serif">Roboto</option>
-                    <option value="'Open Sans', sans-serif">Open Sans</option>
-                    <option value="'Lato', sans-serif">Lato</option>
-                    <option value="'Source Sans Pro', sans-serif">Source Sans Pro</option>
-                    <option value="'Nunito', sans-serif">Nunito</option>
-                    <option value="Georgia, serif">Georgia</option>
-                    <option value="system-ui, sans-serif">System UI</option>
-                  </select>
-                  <p class="form-hint">Font for body text and paragraphs</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Font Sizes -->
-            <div class="subsection">
-              <h4 class="subsection-title">Font Sizes</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Base Font Size (px)</label>
-                  <input 
-                    v-model="getSetting('theme_font_size_base').value" 
-                    type="number" 
-                    class="form-control"
-                    placeholder="16"
-                    min="12"
-                    max="24"
-                  />
-                  <p class="form-hint">Base font size (12-24px, default: 16px)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">H1 Size (rem)</label>
-                  <input 
-                    v-model="getSetting('theme_font_size_h1').value" 
-                    type="number" 
-                    step="0.1"
-                    class="form-control"
-                    placeholder="2.5"
-                    min="1.5"
-                    max="5"
-                  />
-                  <p class="form-hint">Heading 1 size in rem units</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">H2 Size (rem)</label>
-                  <input 
-                    v-model="getSetting('theme_font_size_h2').value" 
-                    type="number" 
-                    step="0.1"
-                    class="form-control"
-                    placeholder="2"
-                    min="1.2"
-                    max="4"
-                  />
-                  <p class="form-hint">Heading 2 size in rem units</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">H3 Size (rem)</label>
-                  <input 
-                    v-model="getSetting('theme_font_size_h3').value" 
-                    type="number" 
-                    step="0.1"
-                    class="form-control"
-                    placeholder="1.5"
-                    min="1"
-                    max="3"
-                  />
-                  <p class="form-hint">Heading 3 size in rem units</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Font Weights -->
-            <div class="subsection">
-              <h4 class="subsection-title">Font Weights</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Heading Weight</label>
-                  <select v-model="getSetting('theme_font_weight_heading').value" class="form-control">
-                    <option value="400">Regular (400)</option>
-                    <option value="500">Medium (500)</option>
-                    <option value="600">Semi-Bold (600)</option>
-                    <option value="700">Bold (700)</option>
-                    <option value="800">Extra-Bold (800)</option>
-                    <option value="900">Black (900)</option>
-                  </select>
-                  <p class="form-hint">Weight for headings</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Body Weight</label>
-                  <select v-model="getSetting('theme_font_weight_body').value" class="form-control">
-                    <option value="300">Light (300)</option>
-                    <option value="400">Regular (400)</option>
-                    <option value="500">Medium (500)</option>
-                    <option value="600">Semi-Bold (600)</option>
-                  </select>
-                  <p class="form-hint">Weight for body text</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Line Heights -->
-            <div class="subsection">
-              <h4 class="subsection-title">Line Heights</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Heading Line Height</label>
-                  <input 
-                    v-model="getSetting('theme_line_height_heading').value" 
-                    type="number" 
-                    step="0.1"
-                    class="form-control"
-                    placeholder="1.2"
-                    min="1"
-                    max="2"
-                  />
-                  <p class="form-hint">Line height for headings (1.0-2.0)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Body Line Height</label>
-                  <input 
-                    v-model="getSetting('theme_line_height_body').value" 
-                    type="number" 
-                    step="0.1"
-                    class="form-control"
-                    placeholder="1.6"
-                    min="1.2"
-                    max="2.5"
-                  />
-                  <p class="form-hint">Line height for body text (1.2-2.5)</p>
-                </div>
-              </div>
-            </div>
-
-            <button @click="saveSection(['theme_font_heading', 'theme_font_body', 'theme_font_size_base', 'theme_font_size_h1', 'theme_font_size_h2', 'theme_font_size_h3', 'theme_font_weight_heading', 'theme_font_weight_body', 'theme_line_height_heading', 'theme_line_height_body'], 'theme')" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Typography' }}
-            </button>
-            </div>
-          </div>
-
-          <!-- Component Styling Section -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('components')">
-              <h3 class="section-header">🎯 Component Styling</h3>
-              <span class="collapse-icon">{{ expandedSections['components'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['components']" class="collapsible-content">
-            <!-- Button Styles -->
-            <div class="subsection">
-              <h4 class="subsection-title">Buttons</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Button Border Radius (px)</label>
-                  <input 
-                    v-model="getSetting('theme_button_radius').value" 
-                    type="number" 
-                    class="form-control"
-                    placeholder="6"
-                    min="0"
-                    max="50"
-                  />
-                  <p class="form-hint">Roundness of buttons (0-50px)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Button Padding (vertical)</label>
-                  <input 
-                    v-model="getSetting('theme_button_padding_y').value" 
-                    type="number" 
-                    step="0.25"
-                    class="form-control"
-                    placeholder="0.75"
-                    min="0.25"
-                    max="2"
-                  />
-                  <p class="form-hint">Vertical padding in rem (0.25-2)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Button Padding (horizontal)</label>
-                  <input 
-                    v-model="getSetting('theme_button_padding_x').value" 
-                    type="number" 
-                    step="0.25"
-                    class="form-control"
-                    placeholder="1.5"
-                    min="0.5"
-                    max="3"
-                  />
-                  <p class="form-hint">Horizontal padding in rem (0.5-3)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Button Font Weight</label>
-                  <select v-model="getSetting('theme_button_font_weight').value" class="form-control">
-                    <option value="400">Regular (400)</option>
-                    <option value="500">Medium (500)</option>
-                    <option value="600">Semi-Bold (600)</option>
-                    <option value="700">Bold (700)</option>
-                  </select>
-                  <p class="form-hint">Text weight for buttons</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Button Text Transform</label>
-                  <select v-model="getSetting('theme_button_text_transform').value" class="form-control">
-                    <option value="none">Normal</option>
-                    <option value="uppercase">UPPERCASE</option>
-                    <option value="lowercase">lowercase</option>
-                    <option value="capitalize">Capitalize First Letter</option>
-                  </select>
-                  <p class="form-hint">Text transformation for buttons</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Card Styles -->
-            <div class="subsection">
-              <h4 class="subsection-title">Cards & Containers</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Card Border Radius (px)</label>
-                  <input 
-                    v-model="getSetting('theme_card_radius').value" 
-                    type="number" 
-                    class="form-control"
-                    placeholder="12"
-                    min="0"
-                    max="50"
-                  />
-                  <p class="form-hint">Roundness of cards (0-50px)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Card Padding (rem)</label>
-                  <input 
-                    v-model="getSetting('theme_card_padding').value" 
-                    type="number" 
-                    step="0.25"
-                    class="form-control"
-                    placeholder="1.5"
-                    min="0.5"
-                    max="4"
-                  />
-                  <p class="form-hint">Inner padding for cards (0.5-4 rem)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Card Shadow</label>
-                  <select v-model="getSetting('theme_card_shadow').value" class="form-control">
-                    <option value="none">None</option>
-                    <option value="0 1px 3px 0 rgb(0 0 0 / 0.1)">Small</option>
-                    <option value="0 4px 6px -1px rgb(0 0 0 / 0.1)">Medium</option>
-                    <option value="0 10px 15px -3px rgb(0 0 0 / 0.1)">Large</option>
-                    <option value="0 20px 25px -5px rgb(0 0 0 / 0.1)">Extra Large</option>
-                  </select>
-                  <p class="form-hint">Drop shadow for cards</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Input Styles -->
-            <div class="subsection">
-              <h4 class="subsection-title">Form Inputs</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Input Border Radius (px)</label>
-                  <input 
-                    v-model="getSetting('theme_input_radius').value" 
-                    type="number" 
-                    class="form-control"
-                    placeholder="6"
-                    min="0"
-                    max="50"
-                  />
-                  <p class="form-hint">Roundness of inputs (0-50px)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Input Border Width (px)</label>
-                  <input 
-                    v-model="getSetting('theme_input_border_width').value" 
-                    type="number" 
-                    class="form-control"
-                    placeholder="1"
-                    min="0"
-                    max="5"
-                  />
-                  <p class="form-hint">Border thickness for inputs (0-5px)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Input Focus Color</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_input_focus_color').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_input_focus_color').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#6366f1"
-                    />
-                  </div>
-                  <p class="form-hint">Border color when input is focused</p>
-                </div>
-              </div>
-            </div>
-
-            <button @click="saveSection(['theme_button_radius', 'theme_button_padding_y', 'theme_button_padding_x', 'theme_button_font_weight', 'theme_button_text_transform', 'theme_card_radius', 'theme_card_padding', 'theme_card_shadow', 'theme_input_radius', 'theme_input_border_width', 'theme_input_focus_color'], 'theme')" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Component Styles' }}
-            </button>
-            </div>
-          </div>
-
-          <!-- Layout & Spacing Section -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('layout')">
-              <h3 class="section-header">📐 Layout & Spacing</h3>
-              <span class="collapse-icon">{{ expandedSections['layout'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['layout']" class="collapsible-content">
-            <div class="subsection">
-              <h4 class="subsection-title">Container Widths</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Max Container Width (px)</label>
-                  <input 
-                    v-model="getSetting('theme_container_max_width').value" 
-                    type="number" 
-                    class="form-control"
-                    placeholder="1280"
-                    min="960"
-                    max="1920"
-                  />
-                  <p class="form-hint">Maximum width of content container (960-1920px)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Container Padding (px)</label>
-                  <input 
-                    v-model="getSetting('theme_container_padding').value" 
-                    type="number" 
-                    class="form-control"
-                    placeholder="20"
-                    min="0"
-                    max="100"
-                  />
-                  <p class="form-hint">Side padding for containers (0-100px)</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="subsection">
-              <h4 class="subsection-title">Section Spacing</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Section Padding Top (rem)</label>
-                  <input 
-                    v-model="getSetting('theme_section_padding_top').value" 
-                    type="number" 
-                    step="0.5"
-                    class="form-control"
-                    placeholder="4"
-                    min="0"
-                    max="10"
-                  />
-                  <p class="form-hint">Top padding for page sections (0-10 rem)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Section Padding Bottom (rem)</label>
-                  <input 
-                    v-model="getSetting('theme_section_padding_bottom').value" 
-                    type="number" 
-                    step="0.5"
-                    class="form-control"
-                    placeholder="4"
-                    min="0"
-                    max="10"
-                  />
-                  <p class="form-hint">Bottom padding for page sections (0-10 rem)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Element Gap (rem)</label>
-                  <input 
-                    v-model="getSetting('theme_element_gap').value" 
-                    type="number" 
-                    step="0.25"
-                    class="form-control"
-                    placeholder="1.5"
-                    min="0.5"
-                    max="4"
-                  />
-                  <p class="form-hint">Default spacing between elements (0.5-4 rem)</p>
-                </div>
-              </div>
-            </div>
-
-            <button @click="saveSection(['theme_container_max_width', 'theme_container_padding', 'theme_section_padding_top', 'theme_section_padding_bottom', 'theme_element_gap'], 'theme')" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Layout & Spacing' }}
-            </button>
-            </div>
-          </div>
-
-          <!-- Effects & Animations Section -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('effects')">
-              <h3 class="section-header">✨ Effects & Animations</h3>
-              <span class="collapse-icon">{{ expandedSections['effects'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['effects']" class="collapsible-content">
-            <div class="subsection">
-              <h4 class="subsection-title">Transitions</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Transition Duration (ms)</label>
-                  <input 
-                    v-model="getSetting('theme_transition_duration').value" 
-                    type="number" 
-                    step="50"
-                    class="form-control"
-                    placeholder="200"
-                    min="0"
-                    max="1000"
-                  />
-                  <p class="form-hint">Duration of hover/focus transitions (0-1000ms)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Transition Timing</label>
-                  <select v-model="getSetting('theme_transition_timing').value" class="form-control">
-                    <option value="ease">Ease (Default)</option>
-                    <option value="linear">Linear</option>
-                    <option value="ease-in">Ease In</option>
-                    <option value="ease-out">Ease Out</option>
-                    <option value="ease-in-out">Ease In-Out</option>
-                    <option value="cubic-bezier(0.4, 0, 0.2, 1)">Smooth</option>
-                  </select>
-                  <p class="form-hint">Animation timing function</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="subsection">
-              <h4 class="subsection-title">Hover Effects</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Enable Hover Lift</label>
-                  <select v-model="getSetting('theme_hover_lift_enabled').value" class="form-control">
-                    <option value="true">Enabled</option>
-                    <option value="false">Disabled</option>
-                  </select>
-                  <p class="form-hint">Cards lift up slightly on hover</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Hover Lift Amount (px)</label>
-                  <input 
-                    v-model="getSetting('theme_hover_lift_amount').value" 
-                    type="number" 
-                    class="form-control"
-                    placeholder="4"
-                    min="0"
-                    max="20"
-                  />
-                  <p class="form-hint">How much elements lift on hover (0-20px)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Hover Scale</label>
-                  <input 
-                    v-model="getSetting('theme_hover_scale').value" 
-                    type="number" 
-                    step="0.01"
-                    class="form-control"
-                    placeholder="1.02"
-                    min="1"
-                    max="1.2"
-                  />
-                  <p class="form-hint">Scale multiplier on hover (1.0-1.2)</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="subsection">
-              <h4 class="subsection-title">Shadow Effects</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Hover Shadow Intensity</label>
-                  <select v-model="getSetting('theme_hover_shadow').value" class="form-control">
-                    <option value="none">None</option>
-                    <option value="0 4px 12px 0 rgb(0 0 0 / 0.1)">Subtle</option>
-                    <option value="0 8px 20px 0 rgb(0 0 0 / 0.15)">Medium</option>
-                    <option value="0 12px 28px 0 rgb(0 0 0 / 0.2)">Strong</option>
-                    <option value="0 20px 40px 0 rgb(0 0 0 / 0.25)">Dramatic</option>
-                  </select>
-                  <p class="form-hint">Shadow that appears on hover</p>
-                </div>
-              </div>
-            </div>
-
-            <button @click="saveSection(['theme_transition_duration', 'theme_transition_timing', 'theme_hover_lift_enabled', 'theme_hover_lift_amount', 'theme_hover_scale', 'theme_hover_shadow'], 'theme')" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Effects & Animations' }}
-            </button>
-            </div>
-          </div>
-
-          <!-- Header & Navigation Section -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('header')">
-              <h3 class="section-header">🧭 Header & Navigation</h3>
-              <span class="collapse-icon">{{ expandedSections['header'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['header']" class="collapsible-content">
-            <div class="subsection">
-              <h4 class="subsection-title">Header Style</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Header Background</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_header_bg').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_header_bg').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#ffffff"
-                    />
-                  </div>
-                  <p class="form-hint">Header/navbar background color</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Header Text Color</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_header_text').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_header_text').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#111827"
-                    />
-                  </div>
-                  <p class="form-hint">Navigation link text color</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Header Height (px)</label>
-                  <input 
-                    v-model="getSetting('theme_header_height').value" 
-                    type="number" 
-                    class="form-control"
-                    placeholder="72"
-                    min="50"
-                    max="120"
-                  />
-                  <p class="form-hint">Height of navigation bar (50-120px)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Header Sticky</label>
-                  <select v-model="getSetting('theme_header_sticky').value" class="form-control">
-                    <option value="true">Enabled (Stays on scroll)</option>
-                    <option value="false">Disabled (Scrolls away)</option>
-                  </select>
-                  <p class="form-hint">Keep header visible when scrolling</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Header Shadow</label>
-                  <select v-model="getSetting('theme_header_shadow').value" class="form-control">
-                    <option value="none">None</option>
-                    <option value="0 1px 3px 0 rgb(0 0 0 / 0.1)">Subtle</option>
-                    <option value="0 4px 6px -1px rgb(0 0 0 / 0.1)">Medium</option>
-                    <option value="0 10px 15px -3px rgb(0 0 0 / 0.1)">Strong</option>
-                  </select>
-                  <p class="form-hint">Drop shadow below header</p>
-                </div>
-              </div>
-            </div>
-
-            <button @click="saveSection(['theme_header_bg', 'theme_header_text', 'theme_header_height', 'theme_header_sticky', 'theme_header_shadow'], 'theme')" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Header Settings' }}
-            </button>
-            </div>
-          </div>
-
-          <!-- Footer Section -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('footer')">
-              <h3 class="section-header">🦶 Footer Styling</h3>
-              <span class="collapse-icon">{{ expandedSections['footer'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['footer']" class="collapsible-content">
-            <div class="subsection">
-              <h4 class="subsection-title">Footer Style</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Footer Background</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_footer_bg').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_footer_bg').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#1f2937"
-                    />
-                  </div>
-                  <p class="form-hint">Footer background color</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Footer Text Color</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_footer_text').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_footer_text').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#9ca3af"
-                    />
-                  </div>
-                  <p class="form-hint">Footer text color</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Footer Padding (rem)</label>
-                  <input 
-                    v-model="getSetting('theme_footer_padding').value" 
-                    type="number" 
-                    step="0.5"
-                    class="form-control"
-                    placeholder="3"
-                    min="1"
-                    max="8"
-                  />
-                  <p class="form-hint">Vertical padding for footer (1-8 rem)</p>
-                </div>
-              </div>
-            </div>
-
-            <button @click="saveSection(['theme_footer_bg', 'theme_footer_text', 'theme_footer_padding'], 'theme')" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Footer Settings' }}
-            </button>
-            </div>
-          </div>
-
-          <!-- Advanced Theme Options -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('advanced')">
-              <h3 class="section-header">🚀 Advanced Features</h3>
-              <span class="collapse-icon">{{ expandedSections['advanced'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['advanced']" class="collapsible-content">
-            <div class="subsection">
-              <h4 class="subsection-title">User Experience Enhancements</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label toggle-label">
-                    <input
-                      type="checkbox"
-                      :checked="getSetting('theme_dark_mode_enabled').value === 'true'"
-                      @change="handleToggleChange('theme_dark_mode_enabled', $event)"
-                      class="toggle-input"
-                    />
-                    <span class="toggle-slider"></span>
-                    Dark Mode Toggle
-                  </label>
-                  <p class="form-hint">🌙 Let users switch between light and dark themes (adds toggle button to site)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label toggle-label">
-                    <input
-                      type="checkbox"
-                      :checked="getSetting('theme_smooth_scroll').value === 'true'"
-                      @change="handleToggleChange('theme_smooth_scroll', $event)"
-                      class="toggle-input"
-                    />
-                    <span class="toggle-slider"></span>
-                    Smooth Scrolling
-                  </label>
-                  <p class="form-hint">🎯 Animated scrolling when clicking anchor links (already default in modern browsers)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label toggle-label">
-                    <input
-                      type="checkbox"
-                      :checked="getSetting('theme_parallax_enabled').value === 'true'"
-                      @change="handleToggleChange('theme_parallax_enabled', $event)"
-                      class="toggle-input"
-                    />
-                    <span class="toggle-slider"></span>
-                    Parallax Scrolling
-                  </label>
-                  <p class="form-hint">🏔️ Background images move slower than foreground (creates 3D depth effect on hero sections)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label toggle-label">
-                    <input
-                      type="checkbox"
-                      :checked="getSetting('theme_glass_morphism').value === 'true'"
-                      @change="handleToggleChange('theme_glass_morphism', $event)"
-                      class="toggle-input"
-                    />
-                    <span class="toggle-slider"></span>
-                    Glass Morphism
-                  </label>
-                  <p class="form-hint">✨ Frosted glass effect with backdrop blur on cards and modals</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label toggle-label">
-                    <input
-                      type="checkbox"
-                      :checked="getSetting('theme_animations_enabled').value === 'true'"
-                      @change="handleToggleChange('theme_animations_enabled', $event)"
-                      class="toggle-input"
-                    />
-                    <span class="toggle-slider"></span>
-                    Page Animations
-                  </label>
-                  <p class="form-hint">🎬 Elements fade/slide in as they enter viewport (scroll animations)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label toggle-label">
-                    <input
-                      type="checkbox"
-                      :checked="getSetting('theme_gradient_overlays').value === 'true'"
-                      @change="handleToggleChange('theme_gradient_overlays', $event)"
-                      class="toggle-input"
-                    />
-                    <span class="toggle-slider"></span>
-                    Gradient Overlays
-                  </label>
-                  <p class="form-hint">🌈 Colored gradient overlays on hero images and feature cards</p>
-                </div>
-
-                <div class="form-group full-width">
-                  <label class="form-label">Custom CSS</label>
-                  <textarea 
-                    v-model="getSetting('theme_custom_css').value" 
-                    class="form-control code-input"
-                    rows="10"
-                    placeholder="/* Add your custom CSS here */&#10;&#10;.my-custom-class {&#10;  color: red;&#10;  font-weight: bold;&#10;}&#10;&#10;/* Override any site styles */&#10;body {&#10;  /* Your overrides here */&#10;}"
-                  ></textarea>
-                  <p class="form-hint">💻 Advanced: Inject custom CSS that will be applied site-wide (use with caution)</p>
-                </div>
-              </div>
-            </div>
-
-            <button @click="saveSection(['theme_dark_mode_enabled', 'theme_smooth_scroll', 'theme_parallax_enabled', 'theme_glass_morphism', 'theme_animations_enabled', 'theme_gradient_overlays', 'theme_custom_css'], 'theme')" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Advanced Features' }}
-            </button>
-            </div>
-          </div>
-
-          <!-- Visual Effects Section -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('visual-effects')">
-              <h3 class="section-header">✨ Visual Effects & Style Presets</h3>
-              <span class="collapse-icon">{{ expandedSections['visual-effects'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['visual-effects']" class="collapsible-content">
-            <div class="subsection">
-              <h4 class="subsection-title">Button Style Preset</h4>
-              <div class="button-preset-grid">
-                <label class="preset-option">
-                  <input type="radio" v-model="getSetting('theme_button_style').value" value="solid" name="button-style" />
-                  <div class="preset-demo">
-                    <div class="demo-button solid-style">Solid</div>
-                  </div>
-                  <span class="preset-label">Solid</span>
-                </label>
-                <label class="preset-option">
-                  <input type="radio" v-model="getSetting('theme_button_style').value" value="outlined" name="button-style" />
-                  <div class="preset-demo">
-                    <div class="demo-button outlined-style">Outlined</div>
-                  </div>
-                  <span class="preset-label">Outlined</span>
-                </label>
-                <label class="preset-option">
-                  <input type="radio" v-model="getSetting('theme_button_style').value" value="raised" name="button-style" />
-                  <div class="preset-demo">
-                    <div class="demo-button raised-style">Raised</div>
-                  </div>
-                  <span class="preset-label">3D Raised</span>
-                </label>
-                <label class="preset-option">
-                  <input type="radio" v-model="getSetting('theme_button_style').value" value="ghost" name="button-style" />
-                  <div class="preset-demo">
-                    <div class="demo-button ghost-style">Ghost</div>
-                  </div>
-                  <span class="preset-label">Ghost</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="subsection">
-              <h4 class="subsection-title">Corner Style Preset</h4>
-              <div class="button-preset-grid">
-                <label class="preset-option">
-                  <input type="radio" v-model="getSetting('theme_corner_style').value" value="sharp" name="corner-style" />
-                  <div class="preset-demo">
-                    <div class="demo-card sharp-corners">Sharp</div>
-                  </div>
-                  <span class="preset-label">Sharp</span>
-                </label>
-                <label class="preset-option">
-                  <input type="radio" v-model="getSetting('theme_corner_style').value" value="rounded" name="corner-style" />
-                  <div class="preset-demo">
-                    <div class="demo-card rounded-corners">Rounded</div>
-                  </div>
-                  <span class="preset-label">Rounded</span>
-                </label>
-                <label class="preset-option">
-                  <input type="radio" v-model="getSetting('theme_corner_style').value" value="extra-rounded" name="corner-style" />
-                  <div class="preset-demo">
-                    <div class="demo-card extra-rounded-corners">Extra</div>
-                  </div>
-                  <span class="preset-label">Extra Round</span>
-                </label>
-                <label class="preset-option">
-                  <input type="radio" v-model="getSetting('theme_corner_style').value" value="pill" name="corner-style" />
-                  <div class="preset-demo">
-                    <div class="demo-card pill-corners">Pill</div>
-                  </div>
-                  <span class="preset-label">Pill</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="subsection">
-              <h4 class="subsection-title">Image Effects</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Image Hover Effect</label>
-                  <select v-model="getSetting('theme_image_hover').value" class="form-control">
-                    <option value="none">None</option>
-                    <option value="zoom">Zoom In</option>
-                    <option value="zoom-out">Zoom Out</option>
-                    <option value="brightness">Brighten</option>
-                    <option value="grayscale">Grayscale to Color</option>
-                    <option value="blur">Sharpen (Remove Blur)</option>
-                  </select>
-                  <p class="form-hint">Effect applied to product/category images on hover</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Image Border Style</label>
-                  <select v-model="getSetting('theme_image_border_style').value" class="form-control">
-                    <option value="none">None</option>
-                    <option value="solid">Solid Border</option>
-                    <option value="shadow">Drop Shadow</option>
-                    <option value="glow">Glow Effect</option>
-                    <option value="frame">Picture Frame</option>
-                  </select>
-                  <p class="form-hint">Border/frame style for images</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Background Pattern</label>
-                  <select v-model="getSetting('theme_bg_pattern').value" class="form-control">
-                    <option value="none">None (Solid)</option>
-                    <option value="dots">Dots</option>
-                    <option value="grid">Grid</option>
-                    <option value="diagonal">Diagonal Lines</option>
-                    <option value="circuit">Circuit</option>
-                    <option value="topography">Topography</option>
-                  </select>
-                  <p class="form-hint">Subtle pattern overlay on page background</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="subsection">
-              <h4 class="subsection-title">Text & Shadow Effects</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Heading Text Shadow</label>
-                  <select v-model="getSetting('theme_heading_shadow').value" class="form-control">
-                    <option value="none">None</option>
-                    <option value="subtle">Subtle</option>
-                    <option value="strong">Strong</option>
-                    <option value="glow">Glow Effect</option>
-                    <option value="long">Long Shadow</option>
-                  </select>
-                  <p class="form-hint">Shadow effect on heading text</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Letter Spacing</label>
-                  <select v-model="getSetting('theme_letter_spacing').value" class="form-control">
-                    <option value="tight">Tight (-0.025em)</option>
-                    <option value="normal">Normal (0)</option>
-                    <option value="wide">Wide (0.025em)</option>
-                    <option value="wider">Wider (0.05em)</option>
-                    <option value="widest">Widest (0.1em)</option>
-                  </select>
-                  <p class="form-hint">Spacing between letters in headings</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Loading Animation</label>
-                  <select v-model="getSetting('theme_loading_animation').value" class="form-control">
-                    <option value="spinner">Spinner</option>
-                    <option value="dots">Bouncing Dots</option>
-                    <option value="pulse">Pulse</option>
-                    <option value="bars">Bars</option>
-                    <option value="skeleton">Skeleton Screen</option>
-                  </select>
-                  <p class="form-hint">Loading indicator style</p>
-                </div>
-              </div>
-            </div>
-
-            <button @click="saveSection(['theme_button_style', 'theme_corner_style', 'theme_image_hover', 'theme_image_border_style', 'theme_bg_pattern', 'theme_heading_shadow', 'theme_letter_spacing', 'theme_loading_animation'], 'theme')" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Visual Effects' }}
-            </button>
-            </div>
-          </div>
-
-          <!-- Gradient Builder Section -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('gradients')">
-              <h3 class="section-header">🌈 Gradient & Background Effects</h3>
-              <span class="collapse-icon">{{ expandedSections['gradients'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['gradients']" class="collapsible-content">
-            <div class="subsection">
-              <h4 class="subsection-title">Hero Background Gradient</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Gradient Color 1</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_gradient_start').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_gradient_start').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#6366f1"
-                    />
-                  </div>
-                  <p class="form-hint">Starting color for gradients</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Gradient Color 2</label>
-                  <div class="color-input-group">
-                    <input 
-                      v-model="getSetting('theme_gradient_end').value" 
-                      type="color" 
-                      class="color-picker"
-                    />
-                    <input 
-                      v-model="getSetting('theme_gradient_end').value" 
-                      type="text" 
-                      class="form-control"
-                      placeholder="#ec4899"
-                    />
-                  </div>
-                  <p class="form-hint">Ending color for gradients</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Gradient Direction</label>
-                  <select v-model="getSetting('theme_gradient_direction').value" class="form-control">
-                    <option value="to right">Left to Right →</option>
-                    <option value="to left">Right to Left ←</option>
-                    <option value="to bottom">Top to Bottom ↓</option>
-                    <option value="to top">Bottom to Top ↑</option>
-                    <option value="to bottom right">Diagonal ↘</option>
-                    <option value="135deg">Diagonal ↖</option>
-                  </select>
-                  <p class="form-hint">Direction of gradient flow</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Gradient Overlay Opacity</label>
-                  <input 
-                    v-model="getSetting('theme_gradient_opacity').value" 
-                    type="range" 
-                    min="0" 
-                    max="100" 
-                    class="range-slider"
-                  />
-                  <div class="range-value">{{ getSetting('theme_gradient_opacity').value }}%</div>
-                  <p class="form-hint">Transparency of gradient overlay (0-100%)</p>
-                </div>
-              </div>
-
-              <!-- Gradient Preview -->
-              <div class="gradient-preview" :style="{ 
-                backgroundImage: `linear-gradient(${getSetting('theme_gradient_direction').value}, ${getSetting('theme_gradient_start').value}, ${getSetting('theme_gradient_end').value})`,
-                opacity: parseInt(String(getSetting('theme_gradient_opacity').value)) / 100
-              }">
-                <span>Gradient Preview</span>
-              </div>
-            </div>
-
-            <div class="subsection">
-              <h4 class="subsection-title">Backdrop & Blur Effects</h4>
-              <div class="settings-grid">
-                <div class="form-group">
-                  <label class="form-label">Backdrop Blur Intensity</label>
-                  <input 
-                    v-model="getSetting('theme_backdrop_blur').value" 
-                    type="range" 
-                    min="0" 
-                    max="20" 
-                    class="range-slider"
-                  />
-                  <div class="range-value">{{ getSetting('theme_backdrop_blur').value }}px</div>
-                  <p class="form-hint">Blur intensity for glass morphism effects (0-20px)</p>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Modal Overlay Opacity</label>
-                  <input 
-                    v-model="getSetting('theme_modal_backdrop_opacity').value" 
-                    type="range" 
-                    min="0" 
-                    max="100" 
-                    class="range-slider"
-                  />
-                  <div class="range-value">{{ getSetting('theme_modal_backdrop_opacity').value }}%</div>
-                  <p class="form-hint">Darkness of modal background overlay (0-100%)</p>
-                </div>
-              </div>
-            </div>
-
-            <button @click="saveSection(['theme_gradient_start', 'theme_gradient_end', 'theme_gradient_direction', 'theme_gradient_opacity', 'theme_backdrop_blur', 'theme_modal_backdrop_opacity'], 'theme')" class="btn btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save Gradient Effects' }}
-            </button>
-            </div>
-          </div>
-
-          <!-- Reset Theme -->
-          <div class="settings-card">
-            <div class="section-header-collapsible" @click="toggleSection('theme-management')">
-              <h3 class="section-header">⚠️ Theme Management</h3>
-              <span class="collapse-icon">{{ expandedSections['theme-management'] ? '▼' : '▶' }}</span>
-            </div>
-            
-            <div v-show="expandedSections['theme-management']" class="collapsible-content">
-            <div class="alert alert-warning">
-              <strong>Reset Theme:</strong> This will restore all theme settings to their default values. This action cannot be undone.
-            </div>
-            <button 
-              @click="confirmResetTheme" 
-              class="btn btn-danger"
-              :disabled="isActionLoading('resetTheme')"
-            >
+            <button @click="confirmResetTheme" class="btn btn-danger" :disabled="isActionLoading('resetTheme')">
               <span v-if="isActionLoading('resetTheme')" class="btn-spinner"></span>
-              {{ isActionLoading('resetTheme') ? 'Resetting...' : 'Reset All Theme Settings' }}
+              {{ isActionLoading('resetTheme') ? 'Resetting...' : 'Reset to Defaults' }}
             </button>
-            </div>
           </div>
         </div>
 
@@ -1877,13 +596,54 @@
 
                 <div class="form-group full-width">
                   <label class="form-label">Hero Subtitle</label>
-                  <textarea 
-                    v-model="getSetting('hero_subtitle').value" 
+                  <textarea
+                    v-model="getSetting('hero_subtitle').value"
                     class="form-control"
                     rows="3"
                     placeholder="Discover our collection of ATVs, dirt bikes, UTVs, snowmobiles, and premium gear for all your outdoor adventures."
                   ></textarea>
                   <p class="form-hint">Supporting text below the main headline</p>
+                </div>
+
+                <div class="form-group full-width">
+                  <label class="form-label">
+                    <input
+                      type="checkbox"
+                      v-model="heroVideoEnabledVal"
+                      style="margin-right: 0.5rem;"
+                    />
+                    Enable Hero Video Background
+                  </label>
+                  <p class="form-hint">Show a video instead of a static image in the hero section</p>
+                </div>
+
+                <div class="form-group full-width">
+                  <label class="form-label">Hero Video URL</label>
+                  <div style="display: flex; gap: 0.5rem; align-items: stretch;">
+                    <input
+                      v-model="heroVideoUrlVal"
+                      type="text"
+                      class="form-control"
+                      placeholder="https://www.youtube.com/watch?v=... or /uploads/media/video.mp4"
+                      style="flex: 1;"
+                    />
+                    <button @click="() => { openMediaPickerFor('hero_video_url', '1') }" type="button" class="btn btn-secondary" style="white-space: nowrap;">
+                      📂 Browse
+                    </button>
+                  </div>
+                  <p class="form-hint">Paste a YouTube URL or pick an MP4 from the media library. Suggested: <em>XP1K offroad UTV mix</em> — youtube.com/watch?v=rEbfteUIkYU</p>
+                </div>
+
+                <div class="form-group" style="max-width: 200px;">
+                  <label class="form-label">Start At (seconds)</label>
+                  <input
+                    v-model.number="heroVideoStartVal"
+                    type="number"
+                    class="form-control"
+                    min="0"
+                    placeholder="0"
+                  />
+                  <p class="form-hint">Skip the first N seconds</p>
                 </div>
               </div>
             </div>
@@ -1937,7 +697,7 @@
 
             <!-- Save Button -->
             <div class="form-actions">
-              <button @click="saveSection(['hero_title', 'hero_subtitle', 'home_features', 'partner_brands', 'brands_section_title', 'brands_section_subtitle'], 'homepage')" class="btn btn-primary" :disabled="saving">
+              <button @click="saveHomepage()" class="btn btn-primary" :disabled="saving">
                 <span class="icon">💾</span>
                 {{ saving ? 'Saving...' : 'Save Homepage' }}
               </button>
@@ -2868,11 +1628,11 @@
       </div>
 
       <!-- Media Picker -->
-      <MediaPicker 
+      <MediaPicker
         :is-open="showMediaPicker"
         @close="showMediaPicker = false"
         @select="handleMediaSelection"
-        media-type="Image"
+        :media-type="mediaPickerMediaType"
       />
     </div>
   </AdminLayout>
@@ -2932,30 +1692,13 @@ const saving = computed(() => {
          isActionLoading('save-smtp') ||
          isActionLoading('save-security') ||
          isActionLoading('save-performance') ||
-         isActionLoading('save-system') ||
-         isActionLoading('preset-Modern & Clean') ||
-         isActionLoading('preset-Bold & Dynamic') ||
-         isActionLoading('preset-Minimal & Elegant') ||
-         isActionLoading('preset-Dark & Mysterious') ||
-         isActionLoading('preset-Warm & Inviting') ||
-         isActionLoading('preset-Tech & Futuristic')
+         isActionLoading('save-system')
 })
 
 // Collapsible sections state - default some sections to expanded
 const expandedSections = ref<Record<string, boolean>>({
   'general-settings': true,
   'theme-presets': true,
-  'color-palette': false,
-  'typography': false,
-  'components': false,
-  'layout': false,
-  'effects': false,
-  'header': false,
-  'footer': false,
-  'advanced': false,
-  'visual-effects': false,
-  'gradients': false,
-  'theme-management': false,
   'social-media': false,
   'homepage': false,
   'products-page': false,
@@ -2976,9 +1719,42 @@ const toggleSection = (sectionId: string) => {
   expandedSections.value[sectionId] = !expandedSections.value[sectionId]
 }
 
+// Hero video — dedicated reactive refs because these settings may not exist in the DB yet.
+// getSetting() returns throwaway stubs for missing keys, so v-model and toggles don't
+// persist their values between calls. These refs are synced from the settings array after
+// loadSettings() and written back before saveSection() runs.
+const heroVideoUrlVal = ref('')
+const heroVideoEnabledVal = ref(false)
+const heroVideoStartVal = ref(0)
+
+const upsertLocalSetting = (key: string, value: string) => {
+  const existing = settings.value.find(s => s.key === key)
+  if (existing) {
+    existing.value = value
+  } else {
+    const meta = SETTING_METADATA[key]
+    settings.value.push({
+      id: 0, key, value,
+      displayName: meta?.displayName ?? key,
+      type: meta?.type ?? 'Text',
+      category: meta?.category ?? 'General',
+      sortOrder: meta?.sortOrder ?? 0,
+      isRequired: false
+    } as SiteSetting)
+  }
+}
+
+const saveHomepage = async () => {
+  upsertLocalSetting('hero_video_url', heroVideoUrlVal.value)
+  upsertLocalSetting('hero_video_enabled', heroVideoEnabledVal.value ? 'true' : 'false')
+  upsertLocalSetting('hero_video_start', String(heroVideoStartVal.value || 0))
+  await saveSection(['hero_title', 'hero_subtitle', 'hero_video_url', 'hero_video_enabled', 'hero_video_start', 'home_features', 'partner_brands', 'brands_section_title', 'brands_section_subtitle'], 'homepage')
+}
+
 // Media Picker state
 const showMediaPicker = ref(false)
 const mediaPickerTargetSetting = ref<string | null>(null)
+const mediaPickerMediaType = ref<string | null>(null)
 
 // SMTP provider presets
 const smtpProviders = [
@@ -2993,6 +1769,143 @@ const smtpProviders = [
 
 const smtpHostProvider = ref('custom')
 const customSmtpHost = ref('')
+
+// Theme form — single reactive object for the entire theme tab
+interface ThemeFormData {
+  presetName: string
+  primaryColor: string
+  secondaryColor: string
+  accentColor: string
+  successColor: string
+  warningColor: string
+  dangerColor: string
+  bgColor: string
+  bgSecondary: string
+  bgMuted: string
+  textPrimary: string
+  textSecondary: string
+  textMuted: string
+  borderColor: string
+  borderAccent: string
+  headerBg: string
+  headerText: string
+  headerShadow: string
+  footerBg: string
+  footerText: string
+  fontHeading: string
+  fontBody: string
+  fontSizeBase: string
+  fontSizeH1: string
+  fontSizeH2: string
+  fontWeightHeading: string
+  fontWeightBody: string
+  buttonRadius: string
+  cardRadius: string
+  buttonTextTransform: string
+  buttonFontWeight: string
+  cornerStyle: string
+  headingShadow: string
+  letterSpacing: string
+  gradientStart: string
+  gradientEnd: string
+  gradientDirection: string
+  gradientOpacity: string
+  transitionDuration: string
+  hoverLiftAmount: string
+  hoverShadow: string
+  customCss: string
+}
+
+const themeForm = ref<ThemeFormData>({
+  presetName: '',
+  primaryColor: '#CC0000',
+  secondaryColor: '#9A9A9A',
+  accentColor: '#FF3333',
+  successColor: '#22c55e',
+  warningColor: '#f59e0b',
+  dangerColor: '#ef4444',
+  bgColor: '#0A0A0A',
+  bgSecondary: '#141414',
+  bgMuted: '#1C1C1C',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#C8C8C8',
+  textMuted: '#7A7A7A',
+  borderColor: '#252525',
+  borderAccent: '#CC0000',
+  headerBg: '#080808',
+  headerText: '#FFFFFF',
+  headerShadow: '0 1px 0 rgba(204,0,0,0.3), 0 4px 24px rgba(0,0,0,0.85)',
+  footerBg: '#050505',
+  footerText: '#AAAAAA',
+  fontHeading: "'Rajdhani', 'Inter', system-ui, sans-serif",
+  fontBody: "'Inter', system-ui, sans-serif",
+  fontSizeBase: '16',
+  fontSizeH1: '3',
+  fontSizeH2: '2.25',
+  fontWeightHeading: '800',
+  fontWeightBody: '400',
+  buttonRadius: '3',
+  cardRadius: '6',
+  buttonTextTransform: 'uppercase',
+  buttonFontWeight: '700',
+  cornerStyle: 'rounded',
+  headingShadow: 'glow',
+  letterSpacing: 'wide',
+  gradientStart: '#CC0000',
+  gradientEnd: '#660000',
+  gradientDirection: '135deg',
+  gradientOpacity: '90',
+  transitionDuration: '200',
+  hoverLiftAmount: '6',
+  hoverShadow: '0 8px 40px rgba(204,0,0,0.35), 0 0 0 1px rgba(204,0,0,0.2)',
+  customCss: ''
+})
+
+// Maps old legacy theme_* keys to themeForm camelCase fields
+const LEGACY_TO_FORM: Record<string, keyof ThemeFormData> = {
+  theme_primary_color: 'primaryColor',
+  theme_secondary_color: 'secondaryColor',
+  theme_accent_color: 'accentColor',
+  theme_success_color: 'successColor',
+  theme_warning_color: 'warningColor',
+  theme_danger_color: 'dangerColor',
+  theme_bg_color: 'bgColor',
+  theme_bg_secondary: 'bgSecondary',
+  theme_bg_muted: 'bgMuted',
+  theme_text_primary: 'textPrimary',
+  theme_text_secondary: 'textSecondary',
+  theme_text_muted: 'textMuted',
+  theme_border_color: 'borderColor',
+  theme_border_accent: 'borderAccent',
+  theme_font_heading: 'fontHeading',
+  theme_font_body: 'fontBody',
+  theme_font_size_base: 'fontSizeBase',
+  theme_font_size_h1: 'fontSizeH1',
+  theme_font_size_h2: 'fontSizeH2',
+  theme_font_weight_heading: 'fontWeightHeading',
+  theme_font_weight_body: 'fontWeightBody',
+  theme_button_radius: 'buttonRadius',
+  theme_card_radius: 'cardRadius',
+  theme_button_text_transform: 'buttonTextTransform',
+  theme_button_font_weight: 'buttonFontWeight',
+  theme_header_bg: 'headerBg',
+  theme_header_text: 'headerText',
+  theme_header_shadow: 'headerShadow',
+  theme_footer_bg: 'footerBg',
+  theme_footer_text: 'footerText',
+  theme_gradient_start: 'gradientStart',
+  theme_gradient_end: 'gradientEnd',
+  theme_gradient_direction: 'gradientDirection',
+  theme_gradient_opacity: 'gradientOpacity',
+  theme_transition_duration: 'transitionDuration',
+  theme_hover_lift_amount: 'hoverLiftAmount',
+  theme_hover_shadow: 'hoverShadow',
+  theme_heading_shadow: 'headingShadow',
+  theme_letter_spacing: 'letterSpacing',
+  theme_corner_style: 'cornerStyle',
+  theme_custom_css: 'customCss',
+  theme_preset_active: 'presetName',
+}
 
 // Theme Presets - Complete predefined themes
 const themePresets = [
@@ -3387,110 +2300,95 @@ const themePresets = [
       theme_gradient_direction: 'to bottom right',
       theme_gradient_opacity: '85'
     }
+  },
+  {
+    name: '701 Performance',
+    icon: '🏆',
+    category: 'motorsports',
+    description: 'Official brand theme — Red, Metallic & Black',
+    preview: { primary: '#CC0000', secondary: '#9A9A9A', bg: '#0A0A0A' },
+    settings: {
+      theme_primary_color: '#CC0000',
+      theme_secondary_color: '#9A9A9A',
+      theme_accent_color: '#FF3333',
+      theme_bg_color: '#0A0A0A',
+      theme_bg_secondary: '#141414',
+      theme_bg_muted: '#1C1C1C',
+      theme_text_primary: '#FFFFFF',
+      theme_text_secondary: '#C8C8C8',
+      theme_text_muted: '#7A7A7A',
+      theme_header_bg: '#080808',
+      theme_header_text: '#FFFFFF',
+      theme_footer_bg: '#050505',
+      theme_footer_text: '#AAAAAA',
+      theme_button_radius: '3',
+      theme_card_radius: '6',
+      theme_gradient_start: '#CC0000',
+      theme_gradient_end: '#660000',
+      theme_gradient_direction: '135deg',
+      theme_gradient_opacity: '90',
+      theme_border_color: '#252525',
+      theme_border_accent: '#CC0000',
+      theme_card_shadow: '0 4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)',
+      theme_hover_shadow: '0 8px 40px rgba(204,0,0,0.35), 0 0 0 1px rgba(204,0,0,0.2)',
+      theme_hover_lift_amount: '6',
+      theme_input_focus_color: '#CC0000',
+      theme_button_text_transform: 'uppercase',
+      theme_button_font_weight: '700',
+      theme_font_weight_heading: '800',
+      theme_heading_shadow: 'glow',
+      theme_letter_spacing: 'wide',
+      theme_font_size_h1: '3',
+      theme_font_size_h2: '2.25',
+      theme_transition_duration: '250',
+      theme_header_shadow: '0 1px 0 rgba(204,0,0,0.3), 0 4px 24px rgba(0,0,0,0.85)',
+      theme_custom_css: `/* 701 Performance — Brand FX */
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700;800&display=swap');
+:root { --font-heading: 'Rajdhani', 'Inter', system-ui, sans-serif; }
+body { background-image: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.012) 2px,rgba(255,255,255,0.012) 4px),repeating-linear-gradient(90deg,transparent,transparent 2px,rgba(255,255,255,0.012) 2px,rgba(255,255,255,0.012) 4px); }
+@keyframes shimmer-sweep { 0% { left: -80%; } 100% { left: 120%; } }
+@keyframes red-pulse { 0%,100% { box-shadow: 0 0 15px rgba(204,0,0,0.3); } 50% { box-shadow: 0 0 35px rgba(204,0,0,0.65),0 0 70px rgba(204,0,0,0.2); } }
+.btn-primary { background: linear-gradient(135deg,#FF2020 0%,#CC0000 45%,#990000 100%) !important; border: 1px solid rgba(255,50,50,0.25) !important; box-shadow: 0 0 16px rgba(204,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.12) !important; position: relative; overflow: hidden; }
+.btn-primary::after { content:''; position:absolute; top:0; left:-80%; width:55%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent); animation: shimmer-sweep 3s ease-in-out infinite; }
+.btn-primary:hover { background: linear-gradient(135deg,#FF3333 0%,#DD0000 45%,#AA0000 100%) !important; box-shadow: 0 0 28px rgba(204,0,0,0.7),0 6px 24px rgba(204,0,0,0.45),inset 0 1px 0 rgba(255,255,255,0.18) !important; transform: translateY(-4px) !important; }
+.btn-outline { border: 1px solid rgba(192,192,192,0.4) !important; color:#C8C8C8 !important; background:rgba(192,192,192,0.05) !important; text-transform:uppercase !important; letter-spacing:0.06em !important; position:relative; overflow:hidden; }
+.btn-outline::after { content:''; position:absolute; top:0; left:-80%; width:55%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.1),transparent); animation: shimmer-sweep 4s ease-in-out infinite; }
+.btn-outline:hover { border-color:rgba(204,0,0,0.55) !important; box-shadow:0 0 18px rgba(204,0,0,0.22) !important; color:#FFFFFF !important; }
+.section-title { background:linear-gradient(135deg,#FF4444 0%,#CC0000 30%,#FF3333 60%,#E8E8E8 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; filter:drop-shadow(0 0 22px rgba(204,0,0,0.4)); }
+.section::before { content:''; display:block; width:48px; height:3px; background:linear-gradient(90deg,#CC0000,#FF3333,#CC0000); margin:0 auto 1.25rem; border-radius:2px; box-shadow:0 0 14px rgba(204,0,0,0.75); }
+.card { background:linear-gradient(135deg,rgba(16,16,16,0.97) 0%,rgba(24,24,24,0.95) 100%) !important; border:1px solid rgba(42,42,42,0.7) !important; backdrop-filter:blur(12px); }
+.card:hover { border-color:rgba(204,0,0,0.5) !important; box-shadow:0 8px 44px rgba(204,0,0,0.28),0 0 0 1px rgba(204,0,0,0.18),inset 0 1px 0 rgba(255,255,255,0.06) !important; }
+.form-control { background:rgba(14,14,14,0.92) !important; border-color:rgba(42,42,42,0.7) !important; color:#FFFFFF !important; }
+.form-control::placeholder { color:#4A4A4A !important; }
+.form-control:focus { border-color:#CC0000 !important; box-shadow:0 0 0 3px rgba(204,0,0,0.14),inset 0 2px 4px rgba(0,0,0,0.35) !important; }
+::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#060606; } ::-webkit-scrollbar-thumb { background:linear-gradient(180deg,#CC0000,#880000); border-radius:3px; } ::-webkit-scrollbar-thumb:hover { background:linear-gradient(180deg,#FF2020,#CC0000); }
+::selection { background:rgba(204,0,0,0.38); color:#FFFFFF; }
+.toast--error { background:linear-gradient(135deg,#1a0000,#8B0000) !important; border-left:3px solid #CC0000; }`
+    }
   }
 ]
 
 // Apply a theme preset
+// Load a preset's values into themeForm and immediately save
 const applyThemePreset = async (preset: typeof themePresets[0]) => {
   await executeWithLoading(async () => {
     try {
-      // First reload settings to ensure we have the latest state from DB
-      await loadSettings()
-      
-      // Apply each setting from the preset (only those that already exist)
-      for (const [key, value] of Object.entries(preset.settings)) {
-        const existingSetting = settings.value.find(s => s.key === key)
-        if (existingSetting) {
-          existingSetting.value = value
-        }
+      // Convert legacy theme_* keys to themeForm fields
+      const mapped: Partial<ThemeFormData> = { presetName: preset.name }
+      for (const [legacyKey, value] of Object.entries(preset.settings)) {
+        const field = LEGACY_TO_FORM[legacyKey]
+        if (field) (mapped as any)[field] = value
       }
-      
-      // Save the active preset name
-      const presetSetting = settings.value.find(s => s.key === 'theme_preset_active')
-      if (presetSetting) {
-        presetSetting.value = preset.name
-      }
-      
-      // Get all the setting keys to save
-      const settingKeys = [...Object.keys(preset.settings), 'theme_preset_active']
-      
-      // Split into existing settings (PUT) and missing ones (POST to create)
-      const settingsToUpdate = settings.value.filter(s => settingKeys.includes(s.key) && s.id > 0)
-      const existingKeys = settingsToUpdate.map(s => s.key)
-      const missingKeys = settingKeys.filter(k => !existingKeys.includes(k))
-      
-      const allPromises: Promise<Response>[] = []
+      // Ensure customCss is cleared if not in preset
+      if (!('customCss' in mapped)) mapped.customCss = ''
+      Object.assign(themeForm.value, mapped)
 
-      // Update existing settings via PUT
-      for (const setting of settingsToUpdate) {
-        allPromises.push(
-          fetch(`${API_URL}/admin/settings/${setting.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authStore.token}`
-            },
-            body: JSON.stringify({ value: String(setting.value) })
-          })
-        )
-      }
-
-      // Create missing settings via POST with preset values
-      for (const key of missingKeys) {
-        const meta = SETTING_METADATA[key]
-        // Use the preset value directly
-        const presetValue = Object.entries(preset.settings).find(([k]) => k === key)?.[1] || meta?.defaultValue || ''
-        
-        allPromises.push(
-          fetch(`${API_URL}/admin/settings`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authStore.token}`
-            },
-            body: JSON.stringify({
-              key,
-              displayName: meta?.displayName ?? key,
-              value: String(presetValue),
-              description: '',
-              type: meta?.type ?? 'Text',
-              category: meta?.category ?? 'General',
-              sortOrder: meta?.sortOrder ?? 0,
-              isRequired: false
-            })
-          }).then(async (response) => {
-            // Ignore 409 conflicts (setting already exists) - it will be updated next time
-            if (response.status === 409) {
-              logDebug(`Setting '${key}' already exists, skipping creation`)
-              return new Response(JSON.stringify({ ok: true }), { status: 200 })
-            }
-            return response
-          })
-        )
-      }
-
-      const results = await Promise.all(allPromises)
-      const failedResults = results.filter(r => !r.ok)
-      
-      if (failedResults.length > 0) {
-        throw new Error(`${failedResults.length} settings failed to save`)
-      }
-      
-      toast.success(`✨ ${preset.name} theme preset applied and saved successfully!`)
-      
-      // Reload settings one final time to reflect all changes
-      await loadSettings()
+      await saveTheme()
     } catch (err) {
       logError('Error applying theme preset:', err)
       toast.error('Failed to apply theme preset')
     }
   }, `preset-${preset.name}`)
-}
-
-// Check if a preset is currently active
-const isPresetActive = (preset: typeof themePresets[0]) => {
-  const activePresetName = getSetting('theme_preset_active').value
-  return activePresetName === preset.name
 }
 
 // Filter presets based on active tab
@@ -3683,6 +2581,11 @@ const SETTING_METADATA: Record<string, { displayName: string; type: string; cate
   theme_backdrop_blur: { displayName: 'Backdrop Blur', type: 'Number', category: 'Theme', sortOrder: 1110, defaultValue: '10' },
   theme_modal_backdrop_opacity: { displayName: 'Modal Backdrop Opacity', type: 'Number', category: 'Theme', sortOrder: 1111, defaultValue: '75' },
   
+  // Content - Hero Video
+  hero_video_url: { displayName: 'Hero Video URL', type: 'Url', category: 'Content', sortOrder: 10, defaultValue: '' },
+  hero_video_enabled: { displayName: 'Enable Hero Video', type: 'Boolean', category: 'Content', sortOrder: 11, defaultValue: 'false' },
+  hero_video_start: { displayName: 'Hero Video Start Time', type: 'Number', category: 'Content', sortOrder: 12, defaultValue: '0' },
+
   // Content - Partner Brands
   partner_brands: { displayName: 'Partner Brands', type: 'Text', category: 'Content', sortOrder: 100, defaultValue: '[]' },
   brands_section_title: { displayName: 'Brands Section Title', type: 'Text', category: 'Content', sortOrder: 101, defaultValue: 'Brands We Carry' },
@@ -3725,14 +2628,20 @@ const loadSettings = async () => {
 }
 
 // Media Picker functions
-const openMediaPickerFor = (settingKey: string) => {
+const openMediaPickerFor = (settingKey: string, mediaType: string | null = null) => {
   mediaPickerTargetSetting.value = settingKey
+  mediaPickerMediaType.value = mediaType
   showMediaPicker.value = true
 }
 
 const handleMediaSelection = (mediaFile: any) => {
   if (mediaPickerTargetSetting.value) {
-    getSetting(mediaPickerTargetSetting.value).value = mediaFile.filePath
+    const key = mediaPickerTargetSetting.value
+    if (key === 'hero_video_url') {
+      heroVideoUrlVal.value = mediaFile.filePath
+    } else {
+      getSetting(key).value = mediaFile.filePath
+    }
     showMediaPicker.value = false
     mediaPickerTargetSetting.value = null
   }
@@ -3864,66 +2773,80 @@ const resetSettings = async () => {
   }, 'resetSettings')
 }
 
+const loadThemeConfig = async () => {
+  try {
+    const data = await apiGet<Record<string, unknown>>('/theme')
+    if ('primaryColor' in data) {
+      // New camelCase format
+      Object.assign(themeForm.value, data)
+    } else {
+      // Legacy flat key/value format — convert using the map
+      for (const [legacyKey, value] of Object.entries(data)) {
+        const field = LEGACY_TO_FORM[legacyKey]
+        if (field) (themeForm.value as any)[field] = String(value)
+      }
+    }
+  } catch {
+    // Silently use form defaults
+  }
+}
+
+const saveTheme = async () => {
+  await executeWithLoading(async () => {
+    try {
+      await apiPut('/admin/theme', themeForm.value)
+      toast.success('✨ Theme saved and applied instantly!')
+    } catch (err: any) {
+      logError('Failed to save theme', err)
+      toast.error(err.message || 'Failed to save theme')
+    }
+  }, 'save-theme')
+}
+
 const confirmResetTheme = async () => {
-  if (!confirm('⚠️ Are you sure you want to reset ALL theme settings to their default values?\n\nThis will restore colors, typography, spacing, effects, header, footer, and all advanced options to defaults.\n\nThis action cannot be undone!')) {
+  if (!confirm('⚠️ Reset ALL theme settings to defaults?\n\nThis will restore the 701 Performance brand theme.\n\nThis action cannot be undone!')) {
     return
   }
 
-  const themeKeys = [
-    // Preset
-    'theme_preset_active',
-    // Colors
-    'theme_primary_color', 'theme_secondary_color', 'theme_accent_color',
-    'theme_success_color', 'theme_warning_color', 'theme_danger_color',
-    'theme_bg_color', 'theme_bg_secondary', 'theme_bg_muted',
-    'theme_text_primary', 'theme_text_secondary', 'theme_text_muted',
-    'theme_border_color', 'theme_border_accent',
-    // Typography
-    'theme_font_heading', 'theme_font_body',
-    'theme_font_size_base', 'theme_font_size_h1', 'theme_font_size_h2', 'theme_font_size_h3',
-    'theme_font_weight_heading', 'theme_font_weight_body',
-    'theme_line_height_heading', 'theme_line_height_body',
-    // Components
-    'theme_button_radius', 'theme_button_padding_y', 'theme_button_padding_x',
-    'theme_button_font_weight', 'theme_button_text_transform',
-    'theme_card_radius', 'theme_card_padding', 'theme_card_shadow',
-    'theme_input_radius', 'theme_input_border_width', 'theme_input_focus_color',
-    // Layout
-    'theme_container_max_width', 'theme_container_padding',
-    'theme_section_padding_top', 'theme_section_padding_bottom', 'theme_element_gap',
-    // Effects
-    'theme_transition_duration', 'theme_transition_timing',
-    'theme_hover_lift_enabled', 'theme_hover_lift_amount', 'theme_hover_scale', 'theme_hover_shadow',
-    // Header
-    'theme_header_bg', 'theme_header_text', 'theme_header_height', 'theme_header_sticky', 'theme_header_shadow',
-    // Footer
-    'theme_footer_bg', 'theme_footer_text', 'theme_footer_padding',
-    // Advanced
-    'theme_dark_mode_enabled', 'theme_smooth_scroll', 'theme_parallax_enabled',
-    'theme_glass_morphism', 'theme_animations_enabled', 'theme_gradient_overlays', 'theme_custom_css',
-    // Visual Effects
-    'theme_button_style', 'theme_corner_style', 'theme_image_hover', 'theme_image_border_style',
-    'theme_bg_pattern', 'theme_heading_shadow', 'theme_letter_spacing', 'theme_loading_animation',
-    // Gradients
-    'theme_gradient_start', 'theme_gradient_end', 'theme_gradient_direction', 'theme_gradient_opacity',
-    'theme_backdrop_blur', 'theme_modal_backdrop_opacity'
-  ]
-
   await executeWithLoading(async () => {
     try {
-      // Reset each theme setting to its default value
-      for (const key of themeKeys) {
-        const setting = getSetting(key)
-        const metadata = SETTING_METADATA[key]
-        if (metadata && metadata.defaultValue !== undefined) {
-          setting.value = metadata.defaultValue
+      // Reset to 701 Performance defaults
+      const defaultPreset = themePresets.find(p => p.name === '701 Performance')
+      if (defaultPreset) {
+        const mapped: Partial<ThemeFormData> = { presetName: defaultPreset.name }
+        for (const [legacyKey, value] of Object.entries(defaultPreset.settings)) {
+          const field = LEGACY_TO_FORM[legacyKey]
+          if (field) (mapped as any)[field] = value
+        }
+        Object.assign(themeForm.value, mapped)
+      } else {
+        // Hard reset to code defaults
+        themeForm.value = {
+          presetName: '',
+          primaryColor: '#CC0000', secondaryColor: '#9A9A9A', accentColor: '#FF3333',
+          successColor: '#22c55e', warningColor: '#f59e0b', dangerColor: '#ef4444',
+          bgColor: '#0A0A0A', bgSecondary: '#141414', bgMuted: '#1C1C1C',
+          textPrimary: '#FFFFFF', textSecondary: '#C8C8C8', textMuted: '#7A7A7A',
+          borderColor: '#252525', borderAccent: '#CC0000',
+          headerBg: '#080808', headerText: '#FFFFFF',
+          headerShadow: '0 1px 0 rgba(204,0,0,0.3), 0 4px 24px rgba(0,0,0,0.85)',
+          footerBg: '#050505', footerText: '#AAAAAA',
+          fontHeading: "'Rajdhani', 'Inter', system-ui, sans-serif",
+          fontBody: "'Inter', system-ui, sans-serif",
+          fontSizeBase: '16', fontSizeH1: '3', fontSizeH2: '2.25',
+          fontWeightHeading: '800', fontWeightBody: '400',
+          buttonRadius: '3', cardRadius: '6',
+          buttonTextTransform: 'uppercase', buttonFontWeight: '700',
+          cornerStyle: 'rounded', headingShadow: 'glow', letterSpacing: 'wide',
+          gradientStart: '#CC0000', gradientEnd: '#660000',
+          gradientDirection: '135deg', gradientOpacity: '90',
+          transitionDuration: '200', hoverLiftAmount: '6',
+          hoverShadow: '0 8px 40px rgba(204,0,0,0.35), 0 0 0 1px rgba(204,0,0,0.2)',
+          customCss: ''
         }
       }
-
-      // Save all theme settings
-      await saveSection(themeKeys, 'theme')
-      
-      toast.success('Theme settings have been reset to defaults!')
+      await saveTheme()
+      toast.success('Theme reset to defaults!')
     } catch (err: any) {
       logError('Failed to reset theme', err)
       toast.error('Failed to reset theme settings')
@@ -3933,6 +2856,14 @@ const confirmResetTheme = async () => {
 
 onMounted(async () => {
   await loadSettings()
+  // Populate hero video refs from loaded settings
+  const urlSetting = settings.value.find(s => s.key === 'hero_video_url')
+  const enabledSetting = settings.value.find(s => s.key === 'hero_video_enabled')
+  const startSetting = settings.value.find(s => s.key === 'hero_video_start')
+  if (urlSetting) heroVideoUrlVal.value = urlSetting.value
+  if (enabledSetting) heroVideoEnabledVal.value = enabledSetting.value === 'true'
+  if (startSetting) heroVideoStartVal.value = parseInt(startSetting.value) || 0
+  await loadThemeConfig()
   detectSmtpProvider()
 })
 </script>
@@ -4146,6 +3077,29 @@ onMounted(async () => {
   color: #6b7280;
   margin: -0.75rem 0 1.5rem 0;
   line-height: 1.6;
+}
+
+/* Theme tab sections */
+.theme-section {
+  margin-bottom: 1rem;
+}
+
+.theme-action-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.5rem 0 0.5rem;
+}
+
+.preset-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  z-index: 2;
 }
 
 /* Theme Presets Section */

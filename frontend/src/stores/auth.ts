@@ -144,6 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null;
     sessionStorage.removeItem('auth_token');
     sessionStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('chat_session');
     delete axios.defaults.headers.common['Authorization'];
   };
 

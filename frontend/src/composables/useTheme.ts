@@ -1,280 +1,147 @@
-import { watch, onMounted } from 'vue'
-import { useSettings } from './useSettings'
+import { onMounted } from 'vue'
+import * as signalR from '@microsoft/signalr'
 import { logDebug } from '@/services/logger'
 
+const API_URL = import.meta.env.VITE_API_URL || ''
+const HUB_URL = `${API_URL}/hubs/chat`
+
+// Module-level theme state — shared across all useTheme() calls
+let themeConnection: signalR.HubConnection | null = null
+let currentTheme: Record<string, string> = {}
+
 export function useTheme() {
-  const { settings, getSetting, loading } = useSettings()
-
-  const applyTheme = () => {
-    // Don't apply theme if settings are still loading
-    if (loading.value) {
-      logDebug('Theme application skipped - settings still loading');
-      return
-    }
-
-    logDebug('Applying theme', { settingsCount: Object.keys(settings.value).length });
-    
+  const applyTheme = (theme?: Record<string, string>) => {
+    const t = theme ?? currentTheme
     const root = document.documentElement
-    const isDarkMode = root.classList.contains('dark-mode')
-    const darkModeEnabled = getSetting('theme_dark_mode_enabled', 'false') === 'true'
 
     // === COLORS ===
-    root.style.setProperty('--color-primary', getSetting('theme_primary_color', '#4b5563') || '#4b5563')
-    root.style.setProperty('--color-secondary', getSetting('theme_secondary_color', '#6b7280') || '#6b7280')
-    root.style.setProperty('--color-accent', getSetting('theme_accent_color', '#f59e0b') || '#f59e0b')
-    root.style.setProperty('--color-success', getSetting('theme_success_color', '#10b981') || '#10b981')
-    root.style.setProperty('--color-warning', getSetting('theme_warning_color', '#f59e0b') || '#f59e0b')
-    root.style.setProperty('--color-danger', getSetting('theme_danger_color', '#ef4444') || '#ef4444')
+    root.style.setProperty('--color-primary', t.primaryColor ?? '#CC0000')
+    root.style.setProperty('--color-secondary', t.secondaryColor ?? '#9A9A9A')
+    root.style.setProperty('--color-accent', t.accentColor ?? '#FF3333')
+    root.style.setProperty('--color-success', t.successColor ?? '#22c55e')
+    root.style.setProperty('--color-warning', t.warningColor ?? '#f59e0b')
+    root.style.setProperty('--color-danger', t.dangerColor ?? '#ef4444')
 
-    // Backgrounds - adapt for dark mode only if enabled and active
-    if (darkModeEnabled && isDarkMode) {
-      root.style.setProperty('--color-bg', '#0f172a')
-      root.style.setProperty('--color-bg-secondary', '#1e293b')
-      root.style.setProperty('--color-bg-muted', '#334155')
-    } else {
-      root.style.setProperty('--color-bg', getSetting('theme_bg_color', '#ffffff') || '#ffffff')
-      root.style.setProperty('--color-bg-secondary', getSetting('theme_bg_secondary', '#f9fafb') || '#f9fafb')
-      root.style.setProperty('--color-bg-muted', getSetting('theme_bg_muted', '#f3f4f6') || '#f3f4f6')
-    }
+    // Backgrounds
+    root.style.setProperty('--color-bg', t.bgColor ?? '#0A0A0A')
+    root.style.setProperty('--color-bg-secondary', t.bgSecondary ?? '#141414')
+    root.style.setProperty('--color-bg-muted', t.bgMuted ?? '#1C1C1C')
 
-    // Text - adapt for dark mode only if enabled and active
-    if (darkModeEnabled && isDarkMode) {
-      root.style.setProperty('--color-text-primary', '#f1f5f9')
-      root.style.setProperty('--color-text-secondary', '#cbd5e1')
-      root.style.setProperty('--color-text-muted', '#94a3b8')
-    } else {
-      root.style.setProperty('--color-text-primary', getSetting('theme_text_primary', '#111827') || '#111827')
-      root.style.setProperty('--color-text-secondary', getSetting('theme_text_secondary', '#6b7280') || '#6b7280')
-      root.style.setProperty('--color-text-muted', getSetting('theme_text_muted', '#9ca3af') || '#9ca3af')
-    }
+    // Text
+    root.style.setProperty('--color-text-primary', t.textPrimary ?? '#FFFFFF')
+    root.style.setProperty('--color-text-secondary', t.textSecondary ?? '#C8C8C8')
+    root.style.setProperty('--color-text-muted', t.textMuted ?? '#7A7A7A')
 
-    // Borders - adapt for dark mode only if enabled and active
-    if (darkModeEnabled && isDarkMode) {
-      root.style.setProperty('--color-border', '#334155')
-      root.style.setProperty('--color-border-accent', '#475569')
-    } else {
-      root.style.setProperty('--color-border', getSetting('theme_border_color', '#e5e7eb') || '#e5e7eb')
-      root.style.setProperty('--color-border-accent', getSetting('theme_border_accent', '#d1d5db') || '#d1d5db')
-    }
+    // Borders
+    root.style.setProperty('--color-border', t.borderColor ?? '#252525')
+    root.style.setProperty('--color-border-accent', t.borderAccent ?? '#CC0000')
 
     // === TYPOGRAPHY ===
-    root.style.setProperty('--font-heading', getSetting('theme_font_heading', "'Inter', system-ui, sans-serif"))
-    root.style.setProperty('--font-body', getSetting('theme_font_body', "'Inter', system-ui, sans-serif"))
-    root.style.setProperty('--font-size-base', getSetting('theme_font_size_base', '16') + 'px')
-    root.style.setProperty('--font-size-h1', getSetting('theme_font_size_h1', '2.5') + 'rem')
-    root.style.setProperty('--font-size-h2', getSetting('theme_font_size_h2', '2') + 'rem')
-    root.style.setProperty('--font-size-h3', getSetting('theme_font_size_h3', '1.5') + 'rem')
-    root.style.setProperty('--font-weight-heading', getSetting('theme_font_weight_heading', '700'))
-    root.style.setProperty('--font-weight-body', getSetting('theme_font_weight_body', '400'))
-    root.style.setProperty('--line-height-heading', getSetting('theme_line_height_heading', '1.2'))
-    root.style.setProperty('--line-height-body', getSetting('theme_line_height_body', '1.6'))
+    root.style.setProperty('--font-heading', t.fontHeading ?? "'Rajdhani', 'Inter', system-ui, sans-serif")
+    root.style.setProperty('--font-body', t.fontBody ?? "'Inter', system-ui, sans-serif")
+    root.style.setProperty('--font-size-base', (t.fontSizeBase ?? '16') + 'px')
+    root.style.setProperty('--font-size-h1', (t.fontSizeH1 ?? '3') + 'rem')
+    root.style.setProperty('--font-size-h2', (t.fontSizeH2 ?? '2.25') + 'rem')
+    root.style.setProperty('--font-size-h3', (t.fontSizeH3 ?? '1.6') + 'rem')
+    root.style.setProperty('--font-weight-heading', t.fontWeightHeading ?? '800')
+    root.style.setProperty('--font-weight-body', t.fontWeightBody ?? '400')
+    root.style.setProperty('--line-height-heading', t.lineHeightHeading ?? '1.1')
+    root.style.setProperty('--line-height-body', t.lineHeightBody ?? '1.6')
 
     // === COMPONENTS ===
-    // Buttons
-    root.style.setProperty('--button-radius', getSetting('theme_button_radius', '6') + 'px')
-    root.style.setProperty('--button-padding-y', getSetting('theme_button_padding_y', '0.75') + 'rem')
-    root.style.setProperty('--button-padding-x', getSetting('theme_button_padding_x', '1.5') + 'rem')
-    root.style.setProperty('--button-font-weight', getSetting('theme_button_font_weight', '600'))
-    root.style.setProperty('--button-text-transform', getSetting('theme_button_text_transform', 'none'))
-
-    // Cards
-    root.style.setProperty('--card-radius', getSetting('theme_card_radius', '12') + 'px')
-    root.style.setProperty('--card-padding', getSetting('theme_card_padding', '1.5') + 'rem')
-    root.style.setProperty('--card-shadow', getSetting('theme_card_shadow', '0 1px 3px 0 rgb(0 0 0 / 0.1)'))
-
-    // Inputs
-    root.style.setProperty('--input-radius', getSetting('theme_input_radius', '6') + 'px')
-    root.style.setProperty('--input-border-width', getSetting('theme_input_border_width', '1') + 'px')
-    root.style.setProperty('--input-focus-color', getSetting('theme_input_focus_color', '#6366f1'))
+    root.style.setProperty('--button-radius', (t.buttonRadius ?? '3') + 'px')
+    root.style.setProperty('--button-padding-y', (t.buttonPaddingY ?? '0.8') + 'rem')
+    root.style.setProperty('--button-padding-x', (t.buttonPaddingX ?? '2') + 'rem')
+    root.style.setProperty('--button-font-weight', t.buttonFontWeight ?? '700')
+    root.style.setProperty('--button-text-transform', t.buttonTextTransform ?? 'uppercase')
+    root.style.setProperty('--card-radius', (t.cardRadius ?? '6') + 'px')
+    root.style.setProperty('--card-padding', (t.cardPadding ?? '1.5') + 'rem')
+    root.style.setProperty('--card-shadow', t.cardShadow ?? '0 4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)')
+    root.style.setProperty('--input-radius', (t.inputRadius ?? '3') + 'px')
+    root.style.setProperty('--input-border-width', (t.inputBorderWidth ?? '1') + 'px')
+    root.style.setProperty('--input-focus-color', t.inputFocusColor ?? '#CC0000')
 
     // === LAYOUT ===
-    root.style.setProperty('--container-max-width', getSetting('theme_container_max_width', '1280') + 'px')
-    root.style.setProperty('--container-padding', getSetting('theme_container_padding', '20') + 'px')
-    root.style.setProperty('--section-padding-top', getSetting('theme_section_padding_top', '4') + 'rem')
-    root.style.setProperty('--section-padding-bottom', getSetting('theme_section_padding_bottom', '4') + 'rem')
-    root.style.setProperty('--element-gap', getSetting('theme_element_gap', '1.5') + 'rem')
+    root.style.setProperty('--container-max-width', (t.containerMaxWidth ?? '1280') + 'px')
+    root.style.setProperty('--container-padding', (t.containerPadding ?? '20') + 'px')
+    root.style.setProperty('--section-padding-top', (t.sectionPaddingTop ?? '4') + 'rem')
+    root.style.setProperty('--section-padding-bottom', (t.sectionPaddingBottom ?? '4') + 'rem')
+    root.style.setProperty('--element-gap', (t.elementGap ?? '1.5') + 'rem')
 
     // === EFFECTS ===
-    root.style.setProperty('--transition-duration', getSetting('theme_transition_duration', '200') + 'ms')
-    root.style.setProperty('--transition-timing', getSetting('theme_transition_timing', 'ease'))
-    root.style.setProperty('--hover-lift-amount', getSetting('theme_hover_lift_amount', '4') + 'px')
-    root.style.setProperty('--hover-scale', getSetting('theme_hover_scale', '1.02'))
-    root.style.setProperty('--hover-shadow', getSetting('theme_hover_shadow', '0 8px 20px 0 rgb(0 0 0 / 0.15)'))
+    root.style.setProperty('--transition-duration', (t.transitionDuration ?? '200') + 'ms')
+    root.style.setProperty('--transition-timing', t.transitionTiming ?? 'ease')
+    root.style.setProperty('--hover-lift-amount', (t.hoverLiftAmount ?? '6') + 'px')
+    root.style.setProperty('--hover-scale', t.hoverScale ?? '1.02')
+    root.style.setProperty('--hover-shadow', t.hoverShadow ?? '0 8px 40px rgba(204,0,0,0.35), 0 0 0 1px rgba(204,0,0,0.2)')
 
     // === HEADER ===
-    if (darkModeEnabled && isDarkMode) {
-      root.style.setProperty('--header-bg', '#1e293b')
-      root.style.setProperty('--header-text', '#f1f5f9')
-      root.style.setProperty('--header-height', getSetting('theme_header_height', '72') + 'px')
-      root.style.setProperty('--header-shadow', '0 1px 3px 0 rgb(0 0 0 / 0.5)')
-    } else {
-      root.style.setProperty('--header-bg', getSetting('theme_header_bg', '#ffffff') || '#ffffff')
-      root.style.setProperty('--header-text', getSetting('theme_header_text', '#111827') || '#111827')
-      root.style.setProperty('--header-height', getSetting('theme_header_height', '72') + 'px')
-      root.style.setProperty('--header-shadow', getSetting('theme_header_shadow', '0 1px 3px 0 rgb(0 0 0 / 0.1)') || '0 1px 3px 0 rgb(0 0 0 / 0.1)')
-    }
+    root.style.setProperty('--header-bg', t.headerBg ?? '#080808')
+    root.style.setProperty('--header-text', t.headerText ?? '#FFFFFF')
+    root.style.setProperty('--header-height', (t.headerHeight ?? '72') + 'px')
+    root.style.setProperty('--header-shadow', t.headerShadow ?? '0 1px 0 rgba(204,0,0,0.3), 0 4px 24px rgba(0,0,0,0.85)')
 
     // === FOOTER ===
-    if (darkModeEnabled && isDarkMode) {
-      root.style.setProperty('--footer-bg', '#0f172a')
-      root.style.setProperty('--footer-text', '#94a3b8')
-      root.style.setProperty('--footer-padding', getSetting('theme_footer_padding', '3') + 'rem')
-    } else {
-      root.style.setProperty('--footer-bg', getSetting('theme_footer_bg', '#1f2937') || '#1f2937')
-      root.style.setProperty('--footer-text', getSetting('theme_footer_text', '#9ca3af') || '#9ca3af')
-      root.style.setProperty('--footer-padding', getSetting('theme_footer_padding', '3') + 'rem')
-    }
+    root.style.setProperty('--footer-bg', t.footerBg ?? '#050505')
+    root.style.setProperty('--footer-text', t.footerText ?? '#AAAAAA')
+    root.style.setProperty('--footer-padding', (t.footerPadding ?? '3') + 'rem')
 
     // === GRADIENTS ===
-    const gradientStart = getSetting('theme_gradient_start', '#6366f1')
-    const gradientEnd = getSetting('theme_gradient_end', '#ec4899')
-    const gradientDirection = getSetting('theme_gradient_direction', 'to right')
-    const gradientOpacity = parseInt(getSetting('theme_gradient_opacity', '70')) / 100
-    
-    root.style.setProperty('--gradient-start', gradientStart)
-    root.style.setProperty('--gradient-end', gradientEnd)
-    root.style.setProperty('--gradient-direction', gradientDirection)
-    root.style.setProperty('--gradient-opacity', gradientOpacity.toString())
-    root.style.setProperty('--gradient', `linear-gradient(${gradientDirection}, ${gradientStart}, ${gradientEnd})`)
+    const gradStart = t.gradientStart ?? '#CC0000'
+    const gradEnd = t.gradientEnd ?? '#660000'
+    const gradDir = t.gradientDirection ?? '135deg'
+    const gradOpacity = (parseInt(t.gradientOpacity ?? '70') / 100).toString()
+    root.style.setProperty('--gradient-start', gradStart)
+    root.style.setProperty('--gradient-end', gradEnd)
+    root.style.setProperty('--gradient-direction', gradDir)
+    root.style.setProperty('--gradient-opacity', gradOpacity)
+    root.style.setProperty('--gradient', `linear-gradient(${gradDir}, ${gradStart}, ${gradEnd})`)
+    root.style.setProperty('--backdrop-blur', (t.backdropBlur ?? '10') + 'px')
+    root.style.setProperty('--modal-backdrop-opacity', (t.modalBackdropOpacity ?? '75') + '%')
 
-    root.style.setProperty('--backdrop-blur', getSetting('theme_backdrop_blur', '10') + 'px')
-    root.style.setProperty('--modal-backdrop-opacity', getSetting('theme_modal_backdrop_opacity', '75') + '%')
-
-    // === ADVANCED FEATURES ===
-    const smoothScroll = getSetting('theme_smooth_scroll', 'true') === 'true'
-    root.style.scrollBehavior = smoothScroll ? 'smooth' : 'auto'
-
-    const glassMorphism = getSetting('theme_glass_morphism', 'false') === 'true'
-    root.style.setProperty('--glass-enabled', glassMorphism ? '1' : '0')
-
-    const animationsEnabled = getSetting('theme_animations_enabled', 'true') === 'true'
-    root.style.setProperty('--animations-enabled', animationsEnabled ? '1' : '0')
-
-    const gradientOverlays = getSetting('theme_gradient_overlays', 'false') === 'true'
-    root.style.setProperty('--gradient-overlays-enabled', gradientOverlays ? '1' : '0')
-
-    const parallaxEnabled = getSetting('theme_parallax_enabled', 'false') === 'true'
-    root.style.setProperty('--parallax-enabled', parallaxEnabled ? '1' : '0')
-
-    // === CORNER STYLES ===
-    const cornerStyle = getSetting('theme_corner_style', 'rounded')
-    let cornerRadius = '8px'
-    switch (cornerStyle) {
-      case 'sharp':
-        cornerRadius = '0px'
-        break
-      case 'rounded':
-        cornerRadius = '8px'
-        break
-      case 'extra-rounded':
-        cornerRadius = '16px'
-        break
-      case 'pill':
-        cornerRadius = '999px'
-        break
+    // === CORNER STYLE ===
+    const cornerMap: Record<string, string> = {
+      sharp: '0px', rounded: '8px', 'extra-rounded': '16px', pill: '999px'
     }
-    root.style.setProperty('--global-corner-radius', cornerRadius)
+    root.style.setProperty('--global-corner-radius', cornerMap[t.cornerStyle ?? 'rounded'] ?? '8px')
 
-    // === BUTTON STYLES ===
-    const buttonStyle = getSetting('theme_button_style', 'solid')
-    root.style.setProperty('--button-style', buttonStyle)
+    // === BUTTON STYLE ===
+    root.style.setProperty('--button-style', t.buttonStyle ?? 'solid')
 
-    // === IMAGE EFFECTS ===
-    const imageHover = getSetting('theme_image_hover', 'zoom')
-    root.style.setProperty('--image-hover-effect', imageHover)
-
-    const imageBorderStyle = getSetting('theme_image_border_style', 'shadow')
-    root.style.setProperty('--image-border-style', imageBorderStyle)
-
-    // === BACKGROUND PATTERN ===
-    const bgPattern = getSetting('theme_bg_pattern', 'none')
-    root.style.setProperty('--bg-pattern', bgPattern)
-    applyBackgroundPattern(bgPattern)
-
-    // === TEXT EFFECTS ===
-    const headingShadow = getSetting('theme_heading_shadow', 'none')
-    let shadowValue = 'none'
-    switch (headingShadow) {
-      case 'subtle':
-        shadowValue = '0 1px 2px rgba(0, 0, 0, 0.1)'
-        break
-      case 'strong':
-        shadowValue = '0 2px 4px rgba(0, 0, 0, 0.3)'
-        break
-      case 'glow':
-        shadowValue = `0 0 20px ${getSetting('theme_primary_color', '#6366f1')}`
-        break
-      case 'long':
-        shadowValue = '2px 2px 0 rgba(0, 0, 0, 0.1), 4px 4px 0 rgba(0, 0, 0, 0.05)'
-        break
+    // === HEADING EFFECTS ===
+    const shadowMap: Record<string, string> = {
+      subtle: '0 1px 2px rgba(0,0,0,0.1)',
+      strong: '0 2px 4px rgba(0,0,0,0.3)',
+      glow: `0 0 20px ${t.primaryColor ?? '#CC0000'}`,
+      long: '2px 2px 0 rgba(0,0,0,0.1), 4px 4px 0 rgba(0,0,0,0.05)',
+      none: 'none'
     }
-    root.style.setProperty('--heading-text-shadow', shadowValue)
+    root.style.setProperty('--heading-text-shadow', shadowMap[t.headingShadow ?? 'glow'] ?? 'none')
 
-    const letterSpacing = getSetting('theme_letter_spacing', 'normal')
-    let spacingValue = '0'
-    switch (letterSpacing) {
-      case 'tight':
-        spacingValue = '-0.025em'
-        break
-      case 'normal':
-        spacingValue = '0'
-        break
-      case 'wide':
-        spacingValue = '0.025em'
-        break
-      case 'wider':
-        spacingValue = '0.05em'
-        break
-      case 'widest':
-        spacingValue = '0.1em'
-        break
+    const spacingMap: Record<string, string> = {
+      tight: '-0.025em', normal: '0', wide: '0.025em', wider: '0.05em', widest: '0.1em'
     }
-    root.style.setProperty('--heading-letter-spacing', spacingValue)
+    root.style.setProperty('--heading-letter-spacing', spacingMap[t.letterSpacing ?? 'wide'] ?? '0.025em')
+
+    // === ANIMATIONS / EFFECTS ===
+    root.style.setProperty('--animations-enabled', (t.animationsEnabled ?? 'true') === 'true' ? '1' : '0')
+    root.style.setProperty('--glass-enabled', (t.glassMorphism ?? 'false') === 'true' ? '1' : '0')
+    root.style.setProperty('--gradient-overlays-enabled', (t.gradientOverlays ?? 'false') === 'true' ? '1' : '0')
+    root.style.setProperty('--parallax-enabled', (t.parallaxEnabled ?? 'false') === 'true' ? '1' : '0')
+    root.style.setProperty('--image-hover-effect', t.imageHover ?? 'zoom')
+    root.style.setProperty('--image-border-style', t.imageBorderStyle ?? 'shadow')
+    root.style.scrollBehavior = (t.smoothScroll ?? 'true') === 'true' ? 'smooth' : 'auto'
 
     // === CUSTOM CSS ===
-    applyCustomCSS(getSetting('theme_custom_css', ''))
+    applyCustomCSS(t.customCss ?? '')
 
-    logDebug('Theme applied successfully')
-  }
-
-  const applyBackgroundPattern = (pattern: string) => {
-    const root = document.documentElement
-    let patternCSS = 'none'
-
-    switch (pattern) {
-      case 'dots':
-        patternCSS = 'radial-gradient(circle, #00000008 1px, transparent 1px)'
-        root.style.backgroundSize = '20px 20px'
-        break
-      case 'grid':
-        patternCSS = 'linear-gradient(#00000008 1px, transparent 1px), linear-gradient(90deg, #00000008 1px, transparent 1px)'
-        root.style.backgroundSize = '20px 20px'
-        break
-      case 'diagonal':
-        patternCSS = 'repeating-linear-gradient(45deg, transparent, transparent 10px, #00000005 10px, #00000005 20px)'
-        break
-      case 'circuit':
-        patternCSS = 'linear-gradient(90deg, #00000008 1px, transparent 1px), linear-gradient(#00000008 1px, transparent 1px)'
-        root.style.backgroundSize = '50px 50px'
-        break
-      case 'topography':
-        patternCSS = 'radial-gradient(circle at 20% 50%, transparent 20%, #00000005 21%, #00000005 34%, transparent 35%, transparent), radial-gradient(circle at 60% 70%, transparent 20%, #00000005 21%, #00000005 34%, transparent 35%, transparent)'
-        root.style.backgroundSize = '100px 100px'
-        break
-    }
-
-    root.style.backgroundImage = patternCSS
+    logDebug('Theme applied', { preset: t.presetName ?? 'custom' })
   }
 
   const applyCustomCSS = (css: string) => {
-    // Remove existing custom CSS
-    const existingStyle = document.getElementById('custom-theme-css')
-    if (existingStyle) {
-      existingStyle.remove()
-    }
-
-    // Add new custom CSS
-    if (css && css.trim()) {
+    const existing = document.getElementById('custom-theme-css')
+    if (existing) existing.remove()
+    if (css?.trim()) {
       const style = document.createElement('style')
       style.id = 'custom-theme-css'
       style.textContent = css
@@ -282,48 +149,132 @@ export function useTheme() {
     }
   }
 
-  // Watch for settings changes and reapply theme
-  watch(settings, () => {
-    logDebug('Settings changed, reapplying theme', { settingsCount: Object.keys(settings.value).length });
-    applyTheme()
-  }, { deep: true })
+  // Converts the legacy flat key/value format (theme_primary_color etc.) to the new camelCase format
+  const normalizeLegacyTheme = (raw: Record<string, unknown>): Record<string, string> => {
+    // If it already has camelCase keys (new format), return as-is
+    if ('primaryColor' in raw) return raw as Record<string, string>
 
-  // Watch for loading to complete, then apply theme
-  watch(loading, (newLoading, oldLoading) => {
-    if (oldLoading && !newLoading) {
-      logDebug('Settings finished loading, applying theme', {
-        totalSettings: Object.keys(settings.value).length,
-        primaryColor: getSetting('theme_primary_color', 'NOT_SET'),
-        bgColor: getSetting('theme_bg_color', 'NOT_SET')
-      });
+    // Map legacy snake_case keys to camelCase
+    const MAP: Record<string, string> = {
+      theme_primary_color: 'primaryColor',
+      theme_secondary_color: 'secondaryColor',
+      theme_accent_color: 'accentColor',
+      theme_success_color: 'successColor',
+      theme_warning_color: 'warningColor',
+      theme_danger_color: 'dangerColor',
+      theme_bg_color: 'bgColor',
+      theme_bg_secondary: 'bgSecondary',
+      theme_bg_muted: 'bgMuted',
+      theme_text_primary: 'textPrimary',
+      theme_text_secondary: 'textSecondary',
+      theme_text_muted: 'textMuted',
+      theme_border_color: 'borderColor',
+      theme_border_accent: 'borderAccent',
+      theme_font_heading: 'fontHeading',
+      theme_font_body: 'fontBody',
+      theme_font_size_base: 'fontSizeBase',
+      theme_font_size_h1: 'fontSizeH1',
+      theme_font_size_h2: 'fontSizeH2',
+      theme_font_size_h3: 'fontSizeH3',
+      theme_font_weight_heading: 'fontWeightHeading',
+      theme_font_weight_body: 'fontWeightBody',
+      theme_line_height_heading: 'lineHeightHeading',
+      theme_line_height_body: 'lineHeightBody',
+      theme_button_radius: 'buttonRadius',
+      theme_button_padding_y: 'buttonPaddingY',
+      theme_button_padding_x: 'buttonPaddingX',
+      theme_button_font_weight: 'buttonFontWeight',
+      theme_button_text_transform: 'buttonTextTransform',
+      theme_card_radius: 'cardRadius',
+      theme_card_padding: 'cardPadding',
+      theme_card_shadow: 'cardShadow',
+      theme_input_radius: 'inputRadius',
+      theme_input_border_width: 'inputBorderWidth',
+      theme_input_focus_color: 'inputFocusColor',
+      theme_container_max_width: 'containerMaxWidth',
+      theme_container_padding: 'containerPadding',
+      theme_section_padding_top: 'sectionPaddingTop',
+      theme_section_padding_bottom: 'sectionPaddingBottom',
+      theme_element_gap: 'elementGap',
+      theme_transition_duration: 'transitionDuration',
+      theme_transition_timing: 'transitionTiming',
+      theme_hover_lift_amount: 'hoverLiftAmount',
+      theme_hover_scale: 'hoverScale',
+      theme_hover_shadow: 'hoverShadow',
+      theme_header_bg: 'headerBg',
+      theme_header_text: 'headerText',
+      theme_header_height: 'headerHeight',
+      theme_header_shadow: 'headerShadow',
+      theme_footer_bg: 'footerBg',
+      theme_footer_text: 'footerText',
+      theme_footer_padding: 'footerPadding',
+      theme_gradient_start: 'gradientStart',
+      theme_gradient_end: 'gradientEnd',
+      theme_gradient_direction: 'gradientDirection',
+      theme_gradient_opacity: 'gradientOpacity',
+      theme_backdrop_blur: 'backdropBlur',
+      theme_modal_backdrop_opacity: 'modalBackdropOpacity',
+      theme_corner_style: 'cornerStyle',
+      theme_button_style: 'buttonStyle',
+      theme_heading_shadow: 'headingShadow',
+      theme_letter_spacing: 'letterSpacing',
+      theme_animations_enabled: 'animationsEnabled',
+      theme_glass_morphism: 'glassMorphism',
+      theme_gradient_overlays: 'gradientOverlays',
+      theme_parallax_enabled: 'parallaxEnabled',
+      theme_smooth_scroll: 'smoothScroll',
+      theme_image_hover: 'imageHover',
+      theme_image_border_style: 'imageBorderStyle',
+      theme_custom_css: 'customCss',
+      theme_preset_active: 'presetName',
+    }
+    const out: Record<string, string> = {}
+    for (const [k, v] of Object.entries(raw)) {
+      const mapped = MAP[k]
+      if (mapped) out[mapped] = String(v)
+    }
+    return out
+  }
+
+  const loadTheme = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/theme`)
+      if (!res.ok) return
+      const raw = await res.json()
+      currentTheme = normalizeLegacyTheme(raw as Record<string, unknown>)
+      applyTheme(currentTheme)
+    } catch (err) {
+      logDebug('Failed to load theme from API, using defaults')
       applyTheme()
     }
-  })
-
-  // Apply theme on mount
-  onMounted(() => {
-    logDebug('useTheme mounted', { 
-      loading: loading.value, 
-      settingsCount: Object.keys(settings.value).length 
-    });
-    applyTheme()
-
-    // Watch for dark mode class changes on document root
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class') {
-          applyTheme()
-        }
-      })
-    })
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    })
-  })
-
-  return {
-    applyTheme
   }
+
+  const connectSignalR = () => {
+    if (themeConnection) return // already connected
+
+    themeConnection = new signalR.HubConnectionBuilder()
+      .withUrl(HUB_URL, {
+        transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling
+      })
+      .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Warning)
+      .build()
+
+    themeConnection.on('ThemeUpdated', (theme: Record<string, unknown>) => {
+      logDebug('ThemeUpdated received via SignalR')
+      currentTheme = normalizeLegacyTheme(theme)
+      applyTheme(currentTheme)
+    })
+
+    themeConnection.start().catch(err => {
+      logDebug('SignalR theme connection failed', err)
+    })
+  }
+
+  onMounted(() => {
+    loadTheme()
+    connectSignalR()
+  })
+
+  return { applyTheme }
 }

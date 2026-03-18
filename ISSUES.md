@@ -6,6 +6,29 @@ Ongoing record of bugs, code quality issues, and the fixes applied.
 
 ## Fixed
 
+### ✅ [OVERHAUL] Theme & Design system rewrite
+**Completed:** 2026-03-18
+**Files:**
+- `backend/PowersportsApi/Program.cs` — new `GET /api/v1/theme` + `PUT /api/v1/admin/theme` endpoints
+- `frontend/src/composables/useTheme.ts` — SignalR subscription for instant theme updates
+- `admin/src/views/Settings.vue` — theme tab rewritten with simplified UI + single save
+
+**Problem:** The previous theme system had multiple issues:
+1. 35 individual `SiteSettings` rows for theme, each needing a separate PUT request when applying a preset
+2. Frontend polling every 5 s to detect theme changes — up to 5 s delay after admin saves
+3. Admin theme tab was ~1500 lines of collapsible sections (Layout, Effects, Gradients, Component Styling, etc.) — overwhelming and rarely needed
+4. `applyThemePreset` fired 35+ parallel HTTP requests, fragile to partial failure
+
+**Fix:**
+- New `PUT /api/v1/admin/theme` endpoint saves all theme settings as a single JSON blob in `theme_config` key, then broadcasts `ThemeUpdated` via SignalR to all connected clients — instant update, zero polling delay
+- New `GET /api/v1/theme` public endpoint for frontend to load theme on page load (falls back to individual `theme_*` settings for backward compat)
+- `useTheme.ts` connects to `/hubs/chat` SignalR hub, listens for `ThemeUpdated`, applies immediately
+- Admin theme tab simplified to: Presets → 8 core colors → Typography → Corner/Button style → Single "Save Theme" button
+
+---
+
+## Fixed
+
 ### ✅ [BUG] `loading` undefined in Settings.vue — error state never shown
 **File:** `admin/src/views/Settings.vue`
 **Completed:** 2026-03-17
