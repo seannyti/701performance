@@ -3,7 +3,7 @@
     <div class="livechat-page">
       <h1 class="page-title">💬 Live Chat</h1>
 
-      <div class="livechat-layout">
+      <div class="livechat-layout" :class="{ 'has-session': activeSessionId }">
         <!-- ── Session sidebar ───────────────────────────────────────── -->
         <aside class="session-sidebar">
           <div class="sidebar-toolbar">
@@ -62,6 +62,7 @@
           <template v-else>
             <!-- Panel header -->
             <div class="panel-header">
+              <button class="back-btn" @click="activeSessionId = null">← Back</button>
               <div>
                 <span class="panel-title">
                   {{ activeSession?.guestName || (activeSession?.userId ? `User #${activeSession.userId}` : 'Guest') }}
@@ -769,4 +770,39 @@ watch(activeMessages, scrollToBottom, { deep: true })
 .confirm-btn-primary:hover { background: #4338ca; }
 .confirm-btn-danger { background: #ef4444; color: #fff; }
 .confirm-btn-danger:hover { background: #dc2626; }
+
+/* Back button — mobile only */
+.back-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .livechat-layout {
+    grid-template-columns: 1fr;
+    height: calc(100vh - 8rem);
+  }
+
+  /* No session selected: show sidebar, hide message panel */
+  .livechat-layout:not(.has-session) .message-panel {
+    display: none;
+  }
+
+  /* Session selected: hide sidebar, show message panel */
+  .livechat-layout.has-session .session-sidebar {
+    display: none;
+  }
+
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: none;
+    color: #4f46e5;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 0.5rem;
+  }
+}
 </style>

@@ -414,4 +414,18 @@ onMounted(loadSettings)
   display: block;
   width: 100% !important;
 }
+
+@media (max-width: 600px) {
+  .settings-page {
+    padding: 1rem;
+  }
+
+  .settings-form {
+    padding: 1rem;
+  }
+
+  .form-hint {
+    word-break: break-word;
+  }
+}
 </style>

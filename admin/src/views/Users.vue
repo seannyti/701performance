@@ -60,12 +60,13 @@
       </div>
 
       <!-- Table -->
-      <div class="card">
+      <div class="card table-card">
         <div v-if="isLoading && users.length === 0" class="empty-state">
           <div class="skeleton-row" v-for="i in 5" :key="i" />
         </div>
 
-        <table v-else-if="filteredUsers.length > 0" class="table">
+        <div v-else-if="filteredUsers.length > 0" class="table-scroll">
+        <table class="table">
           <thead>
             <tr>
               <th>User</th>
@@ -192,6 +193,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
 
         <!-- Empty state -->
         <div v-else class="empty-state">
@@ -782,11 +784,21 @@ onUnmounted(() => clearInterval(refreshInterval))
 <style scoped>
 .users-page { display: flex; flex-direction: column; gap: 1.25rem; }
 
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
+}
+
+.page-header .btn {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .page-title    { font-size: 1.75rem; font-weight: 800; color: #111827; }
@@ -1071,5 +1083,16 @@ onUnmounted(() => clearInterval(refreshInterval))
   background: #f59e0b;
   color: white;
   font-size: 0.65rem;
+}
+
+/* Override global card overflow:hidden so the table can scroll horizontally */
+.table-card {
+  overflow: visible;
+}
+
+@media (max-width: 600px) {
+  .page-title { font-size: 1.4rem; }
+  .filter-select { width: 100%; }
+  .search-input { min-width: 0; }
 }
 </style>

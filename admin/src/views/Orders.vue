@@ -1255,7 +1255,8 @@ onMounted(() => {
 .orders-table {
   background: white;
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {

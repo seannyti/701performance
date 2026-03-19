@@ -1513,6 +1513,8 @@ onMounted(() => {
   gap: 0.5rem;
   margin-bottom: 2rem;
   border-bottom: 2px solid #e5e7eb;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tab {
@@ -1526,6 +1528,8 @@ onMounted(() => {
   color: #6b7280;
   transition: all 0.2s;
   margin-bottom: -2px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab:hover {
