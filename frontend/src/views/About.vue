@@ -212,6 +212,9 @@ const imageFallbacks: Record<string, string> = {
 
 const handleImageError = (event: Event) => {
   const img = event.target as HTMLImageElement;
+  // Prevent infinite retry loop: if error handler already fired for this image, stop
+  if (img.dataset.errorHandled) return;
+  img.dataset.errorHandled = 'true';
   const alt = img.alt.toLowerCase();
   img.src = alt.includes('showroom') ? imageFallbacks.showroom
     : alt.includes('adventure') ? imageFallbacks.adventure
