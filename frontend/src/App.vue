@@ -135,7 +135,7 @@ onUnmounted(() => {
 html {
   font-size: var(--font-size-base, 16px);
   scroll-behavior: var(--scroll-behavior, smooth);
-  overflow-x: hidden;
+  overflow-x: clip; /* clip prevents horizontal overflow without creating a scroll container — unlike hidden, it doesn't break position:sticky */
 }
 
 body {
