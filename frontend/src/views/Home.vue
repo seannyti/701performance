@@ -642,12 +642,12 @@ onMounted(() => {
 }
 
 .brands-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 2rem;
   margin-top: 2.5rem;
   align-items: center;
-  justify-items: center;
+  justify-content: center;
 }
 
 .brand-card {
@@ -655,6 +655,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 100px;
+  flex: 0 1 180px;
   transition: transform 0.3s ease;
 }
 
