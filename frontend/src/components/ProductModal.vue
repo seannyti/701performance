@@ -853,5 +853,9 @@ onUnmounted(() => {
     font-size: 12px;
     padding: 6px 12px;
   }
+
+  .product-modal-specs-section {
+    padding: 0 16px 24px;
+  }
 }
 </style>

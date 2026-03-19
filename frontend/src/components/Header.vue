@@ -209,11 +209,13 @@ const handleLogout = () => {
   justify-content: space-between;
   align-items: center;
   padding: 0 1rem;
-  gap: 2rem;
+  gap: 1rem;
+  min-width: 0;
 }
 
 .nav-brand {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .brand-link {
@@ -222,6 +224,7 @@ const handleLogout = () => {
   text-decoration: none;
   color: var(--header-text, white);
   font-weight: bold;
+  min-width: 0;
 }
 
 .brand-logo {
@@ -240,6 +243,10 @@ const handleLogout = () => {
   font-size: 1.5rem;
   color: var(--header-text, white);
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .mobile-toggle {
@@ -408,10 +415,11 @@ const handleLogout = () => {
   transform: translateY(-1px);
 }
 
-/* Mobile styles */
-@media (max-width: 768px) {
+/* Mobile styles — hamburger kicks in at 1024px to handle long brand names + auth links */
+@media (max-width: 1024px) {
   .mobile-toggle {
     display: flex;
+    flex-shrink: 0;
   }
 
   .header {
@@ -429,6 +437,7 @@ const handleLogout = () => {
     transition: 0.3s;
     box-shadow: 0 10px 27px rgba(0, 0, 0, 0.05);
     padding: 2rem 0;
+    z-index: 999;
   }
 
   .nav-menu.active {
@@ -440,7 +449,7 @@ const handleLogout = () => {
     display: block;
     width: 100%;
   }
-  
+
   .auth-links {
     flex-direction: column;
     gap: 1rem;
@@ -450,30 +459,19 @@ const handleLogout = () => {
     border-top: 1px solid rgba(255, 255, 255, 0.2);
     width: 100%;
   }
-  
+
   .auth-link {
     width: 80%;
     margin: 0 auto;
     text-align: center;
   }
-  
+
   .user-welcome {
     margin-bottom: 0.5rem;
   }
 
   .brand-text {
     font-size: 1.2rem;
-  }
-}
-
-/* Tablet styles */
-@media (max-width: 1024px) and (min-width: 769px) {
-  .nav-container {
-    padding: 0 2rem;
-  }
-  
-  .nav-menu {
-    gap: 1.5rem;
   }
 }
 </style>

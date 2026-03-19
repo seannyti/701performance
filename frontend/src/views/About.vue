@@ -523,6 +523,14 @@ const teamMembers = computed(() => {
     font-size: 1.5rem;
   }
 
+  .mission-section {
+    padding: 1.5rem 1rem;
+  }
+
+  .team-section {
+    padding: 1.5rem 1rem;
+  }
+
   .cta-container {
     padding: 2rem 1rem;
   }

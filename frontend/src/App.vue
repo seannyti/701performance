@@ -135,6 +135,7 @@ onUnmounted(() => {
 html {
   font-size: var(--font-size-base, 16px);
   scroll-behavior: var(--scroll-behavior, smooth);
+  overflow-x: hidden;
 }
 
 body {
@@ -145,6 +146,7 @@ body {
   background-color: var(--color-bg, #f8f9fa);
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
 }
 
 /* Apply heading styles */

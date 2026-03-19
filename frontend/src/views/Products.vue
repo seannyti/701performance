@@ -13,7 +13,11 @@
       <div class="products-layout">
         <!-- Sidebar Filters -->
         <aside class="filters-sidebar">
-          <div class="filter-card">
+          <!-- Mobile filter toggle -->
+          <button class="filters-toggle" @click="filtersOpen = !filtersOpen">
+            {{ filtersOpen ? 'Hide Filters ▲' : 'Show Filters ▼' }}
+          </button>
+          <div class="filter-card" :class="{ 'filters-hidden': !filtersOpen }">
             <h3 class="sidebar-title">Filters</h3>
 
             <!-- Search Filter -->
@@ -143,6 +147,9 @@ const error = ref<string | null>(null);
 const selectedCategory = ref<string>('');
 const searchQuery = ref<string>('');
 const sortBy = ref<string>('featured');
+
+// Mobile filter toggle
+const filtersOpen = ref(true);
 
 // Modal state
 const isModalOpen = ref(false);
@@ -321,6 +328,21 @@ onMounted(() => {
   align-items: start;
 }
 
+/* Mobile filter toggle button - hidden on desktop */
+.filters-toggle {
+  display: none;
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+}
+
 /* Sidebar Filters */
 .filters-sidebar {
   position: sticky;
@@ -473,7 +495,15 @@ onMounted(() => {
   .filters-sidebar {
     position: relative;
     top: 0;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
+  }
+
+  .filters-toggle {
+    display: block;
+  }
+
+  .filters-hidden {
+    display: none;
   }
 
   .products-grid {

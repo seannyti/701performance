@@ -1012,7 +1012,7 @@ onMounted(async () => {
   color: #1f2937;
   font-size: 1rem;
   margin-bottom: 0.25rem;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .backup-item-meta {
