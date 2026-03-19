@@ -91,14 +91,23 @@ const refetchSettings = async () => {
       settingsMap[setting.key] = setting.value
     })
     
-    // Only update if settings actually changed
-    const currentJson = JSON.stringify(settings.value)
-    const newJson = JSON.stringify(settingsMap)
-    
-    if (currentJson !== newJson) {
-      settings.value = settingsMap
-      logDebug('Settings updated from server');
+    // Update only keys that actually changed — avoids replacing the whole
+    // reactive object which would cause computed properties returning parsed
+    // JSON arrays to get new references and trigger unnecessary re-renders
+    let changed = false
+    for (const [key, value] of Object.entries(settingsMap)) {
+      if (settings.value[key] !== value) {
+        settings.value[key] = value
+        changed = true
+      }
     }
+    for (const key of Object.keys(settings.value)) {
+      if (!(key in settingsMap)) {
+        delete settings.value[key]
+        changed = true
+      }
+    }
+    if (changed) logDebug('Settings updated from server')
   } catch (err) {
     // Silently fail during polling - don't want to spam console
   }

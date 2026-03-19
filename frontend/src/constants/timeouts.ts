@@ -6,8 +6,8 @@
 /** API request timeout (10 seconds) */
 export const API_TIMEOUT_MS = 10_000;
 
-/** Settings polling interval (5 seconds) */
-export const SETTINGS_POLL_INTERVAL_MS = 5_000;
+/** Settings polling interval (60 seconds) */
+export const SETTINGS_POLL_INTERVAL_MS = 60_000;
 
 /** Maintenance check timeout (3 seconds) */
 export const MAINTENANCE_CHECK_TIMEOUT_MS = 3_000;
