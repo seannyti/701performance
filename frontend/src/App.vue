@@ -135,7 +135,6 @@ onUnmounted(() => {
 html {
   font-size: var(--font-size-base, 16px);
   scroll-behavior: var(--scroll-behavior, smooth);
-  overflow-x: clip; /* clip prevents horizontal overflow without creating a scroll container — unlike hidden, it doesn't break position:sticky */
 }
 
 body {
@@ -146,7 +145,6 @@ body {
   background-color: var(--color-bg, #f8f9fa);
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
 }
 
 /* Apply heading styles */
