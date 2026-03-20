@@ -26,8 +26,11 @@ public static class DbSeeder
         {
             db.AppUsers.Add(new AppUser
             {
-                Email = "admin@mperformancepower.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin1234!"),
+                Email = "seannytheirish@gmail.com",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("SuperAdmin@123"),
+                FirstName = "Patrick",
+                LastName = "Farrell",
+                Phone = "7018222605",
                 Role = "Admin",
                 EmailVerified = true,
                 IsActive = true,

@@ -10,6 +10,7 @@ import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
 import Paginator from 'primevue/paginator'
+import ToggleSwitch from 'primevue/toggleswitch'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import type { AdminUser, AdminUpdateUserDto } from '@/types/user.types'
@@ -27,7 +28,7 @@ const roleFilter = ref<string | null>(null)
 
 const editOpen = ref(false)
 const editUser = ref<AdminUser | null>(null)
-const editForm = reactive<AdminUpdateUserDto>({ firstName: '', lastName: '', email: '', phone: '', role: '' })
+const editForm = reactive<AdminUpdateUserDto>({ firstName: '', lastName: '', email: '', phone: '', role: '', emailVerified: false })
 const editSaving = ref(false)
 
 const pwResetOpen = ref(false)
@@ -83,6 +84,7 @@ function openEdit(user: AdminUser) {
     email: user.email,
     phone: user.phone ?? '',
     role: user.role,
+    emailVerified: user.emailVerified,
   })
   editOpen.value = true
 }
@@ -271,6 +273,13 @@ function fullName(u: AdminUser): string {
           <label>Role</label>
           <Select v-model="editForm.role" :options="roleOptions" option-label="label" option-value="value" style="width:100%" />
         </div>
+        <div class="field field--inline">
+          <div>
+            <label>Email Verified</label>
+            <p class="field-hint">Force verify this user's email address</p>
+          </div>
+          <ToggleSwitch v-model="editForm.emailVerified" />
+        </div>
       </div>
       <template #footer>
         <Button label="Cancel" severity="secondary" outlined @click="editOpen = false" />
@@ -337,4 +346,6 @@ function fullName(u: AdminUser): string {
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 0.75rem; font-weight: 600; color: #777; text-transform: uppercase; letter-spacing: 0.04em; }
+.field--inline { flex-direction: row; align-items: center; justify-content: space-between; background: #111; border: 1px solid #222; border-radius: 8px; padding: 12px 14px; }
+.field-hint { font-size: 0.75rem; color: #555; margin-top: 2px; }
 </style>

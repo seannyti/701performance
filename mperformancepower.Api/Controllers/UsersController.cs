@@ -85,6 +85,16 @@ public class UsersController(AppDbContext db, IMailService mailService) : Contro
         if (dto.Role is not null && (dto.Role == "Admin" || dto.Role == "Customer"))
             user.Role = dto.Role;
 
+        if (dto.EmailVerified is not null)
+        {
+            user.EmailVerified = dto.EmailVerified.Value;
+            if (dto.EmailVerified.Value)
+            {
+                user.EmailVerificationToken = null;
+                user.EmailVerificationTokenExpiry = null;
+            }
+        }
+
         await db.SaveChangesAsync();
         return Ok(MapToDto(user));
     }

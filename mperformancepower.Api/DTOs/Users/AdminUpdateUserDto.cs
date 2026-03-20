@@ -9,4 +9,5 @@ public class AdminUpdateUserDto
     [MaxLength(30)]  public string? Phone { get; set; }
     [EmailAddress, MaxLength(200)] public string? Email { get; set; }
     public string? Role { get; set; }
+    public bool? EmailVerified { get; set; }
 }

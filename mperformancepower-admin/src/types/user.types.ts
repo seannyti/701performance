@@ -16,6 +16,7 @@ export interface AdminUpdateUserDto {
   phone?: string | null
   email?: string
   role?: string
+  emailVerified?: boolean
 }
 
 export interface UserListResult {
