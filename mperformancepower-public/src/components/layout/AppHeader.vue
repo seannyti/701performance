@@ -44,7 +44,7 @@ function closeUserMenu() {
   <header class="header">
     <div class="header__inner container">
       <RouterLink to="/" class="header__logo">
-        M Performance <strong>Power</strong>
+        {{ settings?.general?.businessName || 'M Performance Power' }}
       </RouterLink>
 
       <nav class="header__nav" :class="{ 'header__nav--open': mobileOpen }">
