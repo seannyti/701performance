@@ -1,0 +1,39 @@
+@use 'variables' as *;
+
+@mixin respond-to($bp) {
+  @if $bp == sm { @media (min-width: $bp-sm) { @content; } }
+  @else if $bp == md { @media (min-width: $bp-md) { @content; } }
+  @else if $bp == lg { @media (min-width: $bp-lg) { @content; } }
+  @else if $bp == xl { @media (min-width: $bp-xl) { @content; } }
+}
+
+@mixin container {
+  max-width: $max-width;
+  margin: 0 auto;
+  padding: 0 $space-md;
+
+  @include respond-to(lg) {
+    padding: 0 $space-xl;
+  }
+}
+
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin card {
+  background: $color-surface;
+  border: 1px solid $color-border;
+  border-radius: $border-radius;
+  overflow: hidden;
+}
+
+@mixin hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+}

@@ -1,0 +1,41 @@
+// ── CSS Custom Properties (runtime-overridable by theme settings) ──────────
+:root {
+  --color-primary:     #e63946;
+  --color-primary-dark:#c1121f;
+  --color-primary-rgb: 230, 57, 70;
+}
+
+// Brand Colors (compile-time fallbacks — keep for SCSS functions)
+$color-primary:    #e63946;
+$color-primary-dark: #c1121f;
+$color-dark:       #111111;
+$color-surface:    #1a1a1a;
+$color-surface-2:  #242424;
+$color-border:     #333333;
+$color-text:       #f0f0f0;
+$color-muted:      #9a9a9a;
+$color-success:    #2dc653;
+$color-warning:    #f4a261;
+
+// Layout
+$max-width:        1280px;
+$header-height:    68px;
+$border-radius:    8px;
+
+// Spacing scale
+$space-xs:  4px;
+$space-sm:  8px;
+$space-md:  16px;
+$space-lg:  24px;
+$space-xl:  40px;
+$space-2xl: 64px;
+
+// Breakpoints
+$bp-sm: 640px;
+$bp-md: 768px;
+$bp-lg: 1024px;
+$bp-xl: 1280px;
+
+// Typography
+$font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+$font-size-base: 16px;

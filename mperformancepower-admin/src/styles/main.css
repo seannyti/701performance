@@ -1,0 +1,87 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #111; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* PrimeVue dark overrides — matches our existing #111 / #222 admin palette */
+.dark .p-card {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 0.75rem;
+  color: #f0f0f0;
+}
+
+.dark .p-card .p-card-title {
+  color: #f0f0f0;
+  font-size: 0.875rem;
+}
+
+.dark .p-card .p-card-body {
+  padding: 1.25rem;
+}
+
+.dark .p-datatable {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.dark .p-datatable .p-datatable-header {
+  background: #111;
+  border-color: #222;
+}
+
+.dark .p-datatable .p-datatable-thead > tr > th {
+  background: #0a0a0a;
+  color: #9a9a9a;
+  border-color: #222;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dark .p-datatable .p-datatable-tbody > tr {
+  background: #111;
+  color: #f0f0f0;
+  border-color: #222;
+}
+
+.dark .p-datatable .p-datatable-tbody > tr:hover {
+  background: #1a1a1a;
+}
+
+.dark .p-datatable .p-datatable-tbody > tr > td {
+  border-color: #222;
+}
+
+.dark .p-datatable .p-datatable-tbody > tr:nth-child(even) {
+  background: #0f0f0f;
+}
+
+.dark .p-dialog {
+  background: #111;
+  border: 1px solid #222;
+}
+
+.dark .p-dialog .p-dialog-header {
+  background: #111;
+  color: #f0f0f0;
+  border-color: #222;
+}
+
+.dark .p-dialog .p-dialog-content {
+  background: #111;
+  color: #f0f0f0;
+}
+
+.dark .p-dialog .p-dialog-footer {
+  background: #111;
+  border-color: #222;
+}
