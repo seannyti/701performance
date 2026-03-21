@@ -50,7 +50,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/financing',
     name: 'financing',
-    component: () => import('@/pages/FinanceView.vue'),
+    component: () => import('@/pages/LendersView.vue'),
   },
   {
     path: '/faq',

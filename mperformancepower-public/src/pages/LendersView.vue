@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { useSettings } from '@/composables/useSettings'
-const { settings } = useSettings()
 </script>
 
 <template>
@@ -28,7 +26,7 @@ const { settings } = useSettings()
           </ul>
         </div>
         <a
-          href="https://www.synchronycredit.com"
+          href="https://www.synchrony.com/financing"
           target="_blank"
           rel="noopener noreferrer"
           class="btn-apply"
@@ -52,7 +50,7 @@ const { settings } = useSettings()
           </ul>
         </div>
         <a
-          href="https://www.octane.co/apply"
+          href="https://octane.co/"
           target="_blank"
           rel="noopener noreferrer"
           class="btn-apply"

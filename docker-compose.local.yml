@@ -1,16 +1,47 @@
-version: "3.9"
 services:
+  db:
+    image: mysql:8.0
+    container_name: mpp_db_local
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: changeme_root
+      MYSQL_DATABASE: mpp
+      MYSQL_USER: mpp_user
+      MYSQL_PASSWORD: changeme_user
+    volumes:
+      - mperformancepower_db_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    networks:
+      - mpp_net
+
   api:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: "Server=db;Port=3306;Database=mpp;Uid=mpp_user;Pwd=changeme_user;SslMode=None;AllowPublicKeyRetrieval=True;"
+      Jwt__Key: supersecretkey_at_least_32_characters_long_here
+      Jwt__Issuer: mperformancepower.com
+      Jwt__Audience: mperformancepower.com
+      App__PublicUrl: http://localhost:8080
+    depends_on:
+      - db
     ports:
       - "5000:8080"
+
   public:
     ports:
       - "5173:80"
+
   admin:
     ports:
       - "5174:80"
+
   nginx:
     ports:
       - "8080:80"
+    volumes:
+      - ./nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro
+
+volumes:
+  mperformancepower_db_data:
+    external: true
