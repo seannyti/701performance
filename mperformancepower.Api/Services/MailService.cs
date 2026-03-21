@@ -31,7 +31,8 @@ public class MailService(AppDbContext db, ILogger<MailService> logger) : IMailSe
         if (recipients.Count == 0) return;
 
         var subject = $"New Inquiry from {inquiry.Name}";
-        var vehicle = string.IsNullOrWhiteSpace(inquiry.VehicleName) ? "General" : inquiry.VehicleName;
+        var vehicleRow = string.IsNullOrWhiteSpace(inquiry.VehicleName) ? "" :
+            $"<tr><td style='padding:10px 0;border-bottom:1px solid #eee;color:#555'><strong>Vehicle:</strong></td><td style='padding:10px 0;border-bottom:1px solid #eee'>{inquiry.VehicleName}</td></tr>";
         var htmlBody = $@"<html><body style='font-family:Arial,sans-serif;background:#f4f4f4;padding:20px'>
 <div style='max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)'>
   <div style='background:#e63946;padding:24px 32px'>
@@ -42,7 +43,7 @@ public class MailService(AppDbContext db, ILogger<MailService> logger) : IMailSe
       <tr><td style='padding:10px 0;border-bottom:1px solid #eee;color:#555;width:120px'><strong>From:</strong></td><td style='padding:10px 0;border-bottom:1px solid #eee'>{inquiry.Name}</td></tr>
       <tr><td style='padding:10px 0;border-bottom:1px solid #eee;color:#555'><strong>Email:</strong></td><td style='padding:10px 0;border-bottom:1px solid #eee'><a href='mailto:{inquiry.Email}' style='color:#e63946'>{inquiry.Email}</a></td></tr>
       <tr><td style='padding:10px 0;border-bottom:1px solid #eee;color:#555'><strong>Phone:</strong></td><td style='padding:10px 0;border-bottom:1px solid #eee'>{inquiry.Phone}</td></tr>
-      <tr><td style='padding:10px 0;border-bottom:1px solid #eee;color:#555'><strong>Vehicle:</strong></td><td style='padding:10px 0;border-bottom:1px solid #eee'>{vehicle}</td></tr>
+      {vehicleRow}
     </table>
     <div style='margin-top:20px'>
       <p style='color:#555;margin-bottom:8px'><strong>Message:</strong></p>
