@@ -207,7 +207,8 @@ onMounted(async () => {
     const data = await res.json()
     if (data.general) {
       Object.assign(general, data.general)
-      if (!general.navLinks) general.navLinks = []
+      if (!general.navLinks || general.navLinks.length === 0)
+        general.navLinks = DEFAULT_NAV_LINKS.map(l => ({ ...l }))
     }
     if (data.pages) {
       Object.assign(pages.home, data.pages.home ?? {})
