@@ -53,4 +53,11 @@ public class InquiriesController(IInquiryService inquiryService) : ControllerBas
         var stats = await inquiryService.GetStatsAsync();
         return Ok(stats);
     }
+
+    [HttpDelete("{id:int}"), Authorize]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var deleted = await inquiryService.DeleteInquiryAsync(id);
+        return deleted ? NoContent() : NotFound();
+    }
 }

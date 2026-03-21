@@ -53,6 +53,12 @@ export const useInquiryStore = defineStore('inquiries', () => {
     stats.value.new++
   }
 
+  async function deleteInquiry(id: number) {
+    await inquiryService.deleteInquiry(id)
+    inquiries.value = inquiries.value.filter(i => i.id !== id)
+    await fetchStats()
+  }
+
   function clearFilters() {
     filters.status = ''
     filters.search = ''
@@ -62,6 +68,6 @@ export const useInquiryStore = defineStore('inquiries', () => {
 
   return {
     inquiries, totalCount, totalPages, loading, stats, filters,
-    fetchInquiries, fetchStats, updateStatus, addInquiry, clearFilters
+    fetchInquiries, fetchStats, updateStatus, addInquiry, deleteInquiry, clearFilters
   }
 })

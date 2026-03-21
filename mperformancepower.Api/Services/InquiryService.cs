@@ -132,6 +132,15 @@ public class InquiryService(
         };
     }
 
+    public async Task<bool> DeleteInquiryAsync(int id)
+    {
+        var inquiry = await db.Inquiries.FindAsync(id);
+        if (inquiry is null) return false;
+        db.Inquiries.Remove(inquiry);
+        await db.SaveChangesAsync();
+        return true;
+    }
+
     private static InquiryDto MapToDto(Inquiry i, string? vehicleName) => new()
     {
         Id = i.Id,

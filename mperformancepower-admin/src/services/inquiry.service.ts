@@ -30,3 +30,7 @@ export async function getStats(): Promise<InquiryStats> {
   const { data } = await api.get('/inquiries/stats')
   return data
 }
+
+export async function deleteInquiry(id: number): Promise<void> {
+  await api.delete(`/inquiries/${id}`)
+}

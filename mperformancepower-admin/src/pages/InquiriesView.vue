@@ -32,6 +32,12 @@ async function setStatus(id: number, status: string) {
   if (selected.value?.id === id) selected.value = updated
 }
 
+async function deleteSelected() {
+  if (!selected.value) return
+  await store.deleteInquiry(selected.value.id)
+  selected.value = null
+}
+
 function formatDate(d: string) {
   return new Date(d).toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -202,6 +208,14 @@ function convertToOrder(inq: Inquiry) {
               outlined
               @click="convertToOrder(selected)"
             />
+            <Button
+              v-if="selected.status === 'Resolved'"
+              label="Delete"
+              icon="pi pi-trash"
+              severity="danger"
+              outlined
+              @click="deleteSelected"
+            />
           </div>
         </aside>
 
@@ -283,6 +297,7 @@ function convertToOrder(inq: Inquiry) {
 }
 .inquiry-detail__message {
   font-size: 0.875rem; line-height: 1.7; white-space: pre-wrap; color: #d0d0d0; margin-bottom: 16px;
+  word-break: break-word; overflow-wrap: break-word;
 }
 .inquiry-detail--empty {
   color: #555; font-size: 0.875rem; display: flex; align-items: center;
