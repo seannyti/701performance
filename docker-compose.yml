@@ -11,6 +11,7 @@ services:
       Jwt__Key: ${JWT_KEY}
       Jwt__Issuer: ${JWT_ISSUER}
       Jwt__Audience: ${JWT_AUDIENCE}
+      App__PublicUrl: ${APP_PUBLIC_URL}
     volumes:
       - ./mperformancepower.Api/wwwroot/uploads:/app/wwwroot/uploads
     networks:
