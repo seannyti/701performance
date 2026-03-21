@@ -21,10 +21,38 @@ public class MailService(AppDbContext db, ILogger<MailService> logger) : IMailSe
     public async Task SendAdminNotificationAsync(InquiryDto inquiry)
     {
         var cfg = await LoadEmailConfigAsync();
-        var from = cfg.ReplyFrom.Length > 0 ? cfg.ReplyFrom : cfg.SmtpUser;
+        var recipients = await LoadInquiryRecipientsAsync();
+
+        // Fall back to SMTP user if no recipients configured
+        if (recipients.Count == 0 && !string.IsNullOrWhiteSpace(cfg.SmtpUser))
+            recipients.Add(cfg.SmtpUser);
+
+        if (recipients.Count == 0) return;
+
         var subject = $"New Inquiry from {inquiry.Name}";
-        var body = $"Name: {inquiry.Name}\nEmail: {inquiry.Email}\nPhone: {inquiry.Phone}\n\n{inquiry.Message}";
-        await SendAsync(from, "Admin", subject, body);
+        var vehicle = string.IsNullOrWhiteSpace(inquiry.VehicleName) ? "General" : inquiry.VehicleName;
+        var body = $@"<html><body style='font-family:Arial,sans-serif;background:#f4f4f4;padding:20px'>
+<div style='max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)'>
+  <div style='background:#e63946;padding:24px 32px'>
+    <h2 style='color:#fff;margin:0;font-size:1.3rem'>New Contact Form Submission</h2>
+  </div>
+  <div style='padding:32px'>
+    <table style='width:100%;border-collapse:collapse;font-size:0.95rem'>
+      <tr><td style='padding:10px 0;border-bottom:1px solid #eee;color:#555;width:120px'><strong>From:</strong></td><td style='padding:10px 0;border-bottom:1px solid #eee'>{inquiry.Name}</td></tr>
+      <tr><td style='padding:10px 0;border-bottom:1px solid #eee;color:#555'><strong>Email:</strong></td><td style='padding:10px 0;border-bottom:1px solid #eee'><a href='mailto:{inquiry.Email}' style='color:#e63946'>{inquiry.Email}</a></td></tr>
+      <tr><td style='padding:10px 0;border-bottom:1px solid #eee;color:#555'><strong>Phone:</strong></td><td style='padding:10px 0;border-bottom:1px solid #eee'>{inquiry.Phone}</td></tr>
+      <tr><td style='padding:10px 0;border-bottom:1px solid #eee;color:#555'><strong>Vehicle:</strong></td><td style='padding:10px 0;border-bottom:1px solid #eee'>{vehicle}</td></tr>
+    </table>
+    <div style='margin-top:20px'>
+      <p style='color:#555;margin-bottom:8px'><strong>Message:</strong></p>
+      <div style='background:#f9f9f9;border:1px solid #eee;border-radius:6px;padding:16px;font-size:0.9rem;color:#333;line-height:1.6'>{inquiry.Message}</div>
+    </div>
+    <p style='margin-top:24px;font-size:0.8rem;color:#999'>This message was sent via the contact form on Minot Performance Powersports.<br>You can reply directly to <a href='mailto:{inquiry.Email}' style='color:#e63946'>{inquiry.Email}</a></p>
+  </div>
+</div></body></html>";
+
+        foreach (var recipient in recipients)
+            await SendHtmlAsync(recipient, "Admin", subject, body);
     }
 
     public async Task SendEmailVerificationAsync(string toEmail, string name, string token, string publicBaseUrl)
@@ -40,6 +68,52 @@ public class MailService(AppDbContext db, ILogger<MailService> logger) : IMailSe
         var subject = "Your temporary password — Minot Performance Powersports";
         var body = $"A temporary password has been set for your account:\n\n{tempPassword}\n\nPlease log in and change your password immediately.\n\nMinot Performance Powersports";
         await SendAsync(toEmail, toEmail, subject, body);
+    }
+
+    private async Task SendHtmlAsync(string toAddress, string toName, string subject, string htmlBody)
+    {
+        try
+        {
+            var cfg = await LoadEmailConfigAsync();
+            if (string.IsNullOrWhiteSpace(cfg.SmtpHost)) return;
+
+            var fromAddress = cfg.ReplyFrom.Length > 0 ? cfg.ReplyFrom : cfg.SmtpUser;
+            var message = new MimeMessage();
+            message.From.Add(new MailboxAddress("Minot Performance Powersports", fromAddress));
+            message.To.Add(new MailboxAddress(toName, toAddress));
+            message.Subject = subject;
+            message.Body = new TextPart("html") { Text = htmlBody };
+
+            using var client = new SmtpClient();
+            var socketOptions = cfg.SmtpSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTlsWhenAvailable;
+            await client.ConnectAsync(cfg.SmtpHost, cfg.SmtpPort, socketOptions);
+            if (!string.IsNullOrWhiteSpace(cfg.SmtpUser))
+                await client.AuthenticateAsync(cfg.SmtpUser, cfg.SmtpPass);
+            await client.SendAsync(message);
+            await client.DisconnectAsync(true);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send HTML email to {Address}", toAddress);
+        }
+    }
+
+    private async Task<List<string>> LoadInquiryRecipientsAsync()
+    {
+        var setting = await db.SiteSettings.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Section == "email");
+        if (setting is null) return [];
+        try
+        {
+            var doc = System.Text.Json.JsonDocument.Parse(setting.DataJson);
+            if (doc.RootElement.TryGetProperty("inquiryRecipients", out var arr))
+                return arr.EnumerateArray()
+                    .Select(e => e.GetString() ?? "")
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+        }
+        catch { }
+        return [];
     }
 
     private async Task SendAsync(string toAddress, string toName, string subject, string body)
