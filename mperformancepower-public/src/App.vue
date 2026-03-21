@@ -25,6 +25,12 @@ watchEffect(() => {
   root.style.setProperty('--color-primary-dark', t?.primaryDark || '#c1121f')
   root.style.setProperty('--color-primary-rgb',  t?.primaryRgb  || '230, 57, 70')
 })
+
+// Update browser tab title from settings
+watchEffect(() => {
+  const name = settings.value?.general?.businessName
+  if (name) document.title = name
+})
 </script>
 
 <template>
