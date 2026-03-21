@@ -12,7 +12,6 @@ namespace mperformancepower.Api.Services;
 
 public class InquiryService(
     AppDbContext db,
-    IMailService mail,
     IHubContext<NotificationHub> hub,
     IServiceScopeFactory scopeFactory) : IInquiryService
 {
