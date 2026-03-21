@@ -124,10 +124,11 @@ public class MailService(AppDbContext db, ILogger<MailService> logger) : IMailSe
                 await client.AuthenticateAsync(cfg.SmtpUser, cfg.SmtpPass);
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
+            logger.LogInformation("HTML email sent successfully to {Address} | Subject: {Subject}", toAddress, subject);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to send HTML email to {Address}", toAddress);
+            logger.LogError(ex, "Failed to send HTML email to {Address} | {Message}", toAddress, ex.Message);
         }
     }
 
