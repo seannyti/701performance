@@ -155,6 +155,18 @@ async function confirmDelete() {
 function fullName(u: AdminUser): string {
   return [u.firstName, u.lastName].filter(Boolean).join(' ') || '—'
 }
+
+function avatarUrl(u: AdminUser): string | null {
+  if (!u.avatarPath) return null
+  const base = (import.meta.env.VITE_API_URL as string).replace(/\/api$/, '')
+  return `${base}/uploads/${u.avatarPath}`
+}
+
+function initials(u: AdminUser): string {
+  const f = u.firstName?.[0] ?? ''
+  const l = u.lastName?.[0] ?? ''
+  return (f + l).toUpperCase() || u.email[0].toUpperCase()
+}
 </script>
 
 <template>
@@ -191,7 +203,13 @@ function fullName(u: AdminUser): string {
         <template #empty>No users found.</template>
         <Column header="Name">
           <template #body="{ data }">
-            <span :style="{ opacity: data.isActive ? 1 : 0.4 }">{{ fullName(data) }}</span>
+            <div class="user-cell" :style="{ opacity: data.isActive ? 1 : 0.4 }">
+              <div class="user-avatar">
+                <img v-if="avatarUrl(data)" :src="avatarUrl(data)!" alt="" class="user-avatar__img" />
+                <span v-else class="user-avatar__initials">{{ initials(data) }}</span>
+              </div>
+              <span>{{ fullName(data) }}</span>
+            </div>
           </template>
         </Column>
         <Column header="Email">
@@ -338,6 +356,13 @@ function fullName(u: AdminUser): string {
   padding: 14px 18px;
 }
 
+.user-cell { display: flex; align-items: center; gap: 10px; }
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  background: #2a2a2a; border: 1px solid #333; display: flex; align-items: center; justify-content: center;
+}
+.user-avatar__img { width: 100%; height: 100%; object-fit: cover; }
+.user-avatar__initials { font-size: 0.7rem; font-weight: 700; color: #aaa; }
 .email-cell { font-size: 0.8rem; color: #9a9a9a; }
 .date-cell { font-size: 0.75rem; color: #555; white-space: nowrap; }
 .action-btns { display: flex; gap: 2px; }

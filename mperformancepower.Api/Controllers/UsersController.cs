@@ -50,6 +50,7 @@ public class UsersController(AppDbContext db, IMailService mailService) : Contro
                 EmailVerified = u.EmailVerified,
                 IsActive = u.IsActive,
                 CreatedAt = u.CreatedAt,
+                AvatarPath = u.AvatarPath,
             })
             .ToListAsync();
 
@@ -193,6 +194,7 @@ public class UsersController(AppDbContext db, IMailService mailService) : Contro
         EmailVerified = u.EmailVerified,
         IsActive = u.IsActive,
         CreatedAt = u.CreatedAt,
+        AvatarPath = u.AvatarPath,
     };
 
     private static string GenerateTempPassword()

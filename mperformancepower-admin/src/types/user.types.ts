@@ -8,6 +8,7 @@ export interface AdminUser {
   emailVerified: boolean
   isActive: boolean
   createdAt: string
+  avatarPath: string | null
 }
 
 export interface AdminUpdateUserDto {

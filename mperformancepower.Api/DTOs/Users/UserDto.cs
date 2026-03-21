@@ -11,4 +11,5 @@ public class UserDto
     public bool EmailVerified { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? AvatarPath { get; set; }
 }
