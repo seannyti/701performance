@@ -11,10 +11,11 @@ const router = useRouter()
 const { settings } = useSettings()
 
 const defaultNavLinks = [
-  { name: 'Home',      to: '/' },
-  { name: 'Inventory', to: '/inventory' },
-  { name: 'About',     to: '/about' },
-  { name: 'Contact',   to: '/contact' },
+  { name: 'Home',       to: '/' },
+  { name: 'Inventory',  to: '/inventory' },
+  { name: 'Financing',  to: '/financing' },
+  { name: 'About',      to: '/about' },
+  { name: 'Contact',    to: '/contact' },
 ]
 
 const navLinks = computed(() => {
