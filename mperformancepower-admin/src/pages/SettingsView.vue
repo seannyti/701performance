@@ -238,6 +238,9 @@ onMounted(async () => {
 
 // ── Save ─────────────────────────────────────────────────────────
 async function save() {
+  // Auto-commit any partially typed recipient before saving
+  if (inquiryInput.value.trim()) addRecipient(email.inquiryRecipients, inquiryInput as any)
+  if (orderInput.value.trim()) addRecipient(email.orderRecipients, orderInput as any)
   saving.value = true
   const token = localStorage.getItem('mpp_token')
   const sectionMap: Record<string, unknown> = {
