@@ -112,6 +112,7 @@ function closeUserMenu() {
   position: sticky;
   top: 0;
   z-index: 100;
+  overflow: visible;
   background: rgba($color-dark, 0.97);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid $color-border;
@@ -139,6 +140,52 @@ function closeUserMenu() {
     gap: $space-lg;
 
     @include respond-to(md) { display: flex; }
+
+    // Mobile open state
+    &--open {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+      position: absolute;
+      top: $header-height;
+      left: 0;
+      right: 0;
+      background: rgba($color-dark, 0.99);
+      border-bottom: 1px solid $color-border;
+      padding: $space-md $space-lg $space-lg;
+      z-index: 99;
+
+      .nav-link {
+        width: 100%;
+        padding: $space-md 0;
+        font-size: 1rem;
+        border-bottom: 1px solid $color-border;
+      }
+
+      .nav-btn {
+        width: 100%;
+        text-align: center;
+        margin-top: $space-md;
+      }
+
+      .user-menu {
+        width: 100%;
+        margin-top: $space-md;
+
+        &__trigger {
+          width: 100%;
+          justify-content: space-between;
+        }
+
+        &__dropdown {
+          position: static;
+          margin-top: $space-sm;
+          box-shadow: none;
+          border-radius: 8px;
+        }
+      }
+    }
   }
 
   &__hamburger {
@@ -146,6 +193,10 @@ function closeUserMenu() {
     flex-direction: column;
     gap: 5px;
     padding: $space-sm;
+    background: none;
+    border: none;
+    cursor: pointer;
+    z-index: 101;
 
     @include respond-to(md) { display: none; }
 
@@ -155,6 +206,7 @@ function closeUserMenu() {
       height: 2px;
       background: $color-text;
       border-radius: 2px;
+      transition: transform 0.2s, opacity 0.2s;
     }
   }
 }
