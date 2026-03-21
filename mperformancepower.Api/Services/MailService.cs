@@ -13,8 +13,8 @@ public class MailService(AppDbContext db, ILogger<MailService> logger) : IMailSe
 {
     public async Task SendInquiryConfirmationAsync(InquiryDto inquiry)
     {
-        var subject = "We received your inquiry — M Performance Power";
-        var body = $"Hi {inquiry.Name},\n\nThank you for reaching out! We'll be in touch shortly.\n\nM Performance Power";
+        var subject = "We received your inquiry — Minot Performance Powersports";
+        var body = $"Hi {inquiry.Name},\n\nThank you for reaching out! We'll be in touch shortly.\n\nMinot Performance Powersports";
         await SendAsync(inquiry.Email, inquiry.Name, subject, body);
     }
 
@@ -30,15 +30,15 @@ public class MailService(AppDbContext db, ILogger<MailService> logger) : IMailSe
     public async Task SendEmailVerificationAsync(string toEmail, string name, string token, string publicBaseUrl)
     {
         var link = $"{publicBaseUrl.TrimEnd('/')}/verify-email?token={token}";
-        var subject = "Verify your email — M Performance Power";
-        var body = $"Hi {name},\n\nPlease verify your email address by clicking the link below:\n\n{link}\n\nThis link expires in 24 hours.\n\nM Performance Power";
+        var subject = "Verify your email — Minot Performance Powersports";
+        var body = $"Hi {name},\n\nPlease verify your email address by clicking the link below:\n\n{link}\n\nThis link expires in 24 hours.\n\nMinot Performance Powersports";
         await SendAsync(toEmail, name, subject, body);
     }
 
     public async Task SendTempPasswordAsync(string toEmail, string tempPassword)
     {
-        var subject = "Your temporary password — M Performance Power";
-        var body = $"A temporary password has been set for your account:\n\n{tempPassword}\n\nPlease log in and change your password immediately.\n\nM Performance Power";
+        var subject = "Your temporary password — Minot Performance Powersports";
+        var body = $"A temporary password has been set for your account:\n\n{tempPassword}\n\nPlease log in and change your password immediately.\n\nMinot Performance Powersports";
         await SendAsync(toEmail, toEmail, subject, body);
     }
 
@@ -57,7 +57,7 @@ public class MailService(AppDbContext db, ILogger<MailService> logger) : IMailSe
             var fromAddress = cfg.ReplyFrom.Length > 0 ? cfg.ReplyFrom : cfg.SmtpUser;
 
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("M Performance Power", fromAddress));
+            message.From.Add(new MailboxAddress("Minot Performance Powersports", fromAddress));
             message.To.Add(new MailboxAddress(toName, toAddress));
             message.Subject = subject;
             message.Body = new TextPart("plain") { Text = body };
