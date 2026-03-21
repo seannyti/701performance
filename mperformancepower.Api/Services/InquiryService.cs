@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using mperformancepower.Api.Data;
 using mperformancepower.Api.DTOs.Common;
 using mperformancepower.Api.DTOs.Inquiry;
@@ -12,7 +13,8 @@ namespace mperformancepower.Api.Services;
 public class InquiryService(
     AppDbContext db,
     IMailService mail,
-    IHubContext<NotificationHub> hub) : IInquiryService
+    IHubContext<NotificationHub> hub,
+    IServiceScopeFactory scopeFactory) : IInquiryService
 {
     public async Task<InquiryDto> CreateInquiryAsync(CreateInquiryDto dto)
     {
@@ -40,8 +42,10 @@ public class InquiryService(
 
         _ = Task.Run(async () =>
         {
-            await mail.SendInquiryConfirmationAsync(result);
-            await mail.SendAdminNotificationAsync(result);
+            using var scope = scopeFactory.CreateScope();
+            var scopedMail = scope.ServiceProvider.GetRequiredService<IMailService>();
+            await scopedMail.SendInquiryConfirmationAsync(result);
+            await scopedMail.SendAdminNotificationAsync(result);
         });
 
         await hub.Clients.Group("Admins").SendAsync("NewInquiry", result);
