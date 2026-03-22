@@ -46,6 +46,8 @@ const content = reactive({
   announcementBar: { enabled: false, text: '', bgColor: '#e63946', textColor: '#ffffff' },
   testimonials: [] as { name: string; text: string; rating: number }[],
   faqs: [] as { question: string; answer: string }[],
+  synchronyUrl: 'https://www.synchrony.com/financing',
+  octaneUrl: 'https://octane.co/flex/135761',
   brands: [] as { name: string; url: string }[],
 })
 
@@ -73,6 +75,7 @@ const auth = reactive({
   enableRegistration: true,
   requireEmailVerification: false,
 })
+
 
 const legal = reactive({
   faq: '',
@@ -220,6 +223,8 @@ onMounted(async () => {
       Object.assign(content.announcementBar, data.content.announcementBar ?? {})
       if (data.content.testimonials) content.testimonials = data.content.testimonials
       if (data.content.faqs) content.faqs = data.content.faqs
+      if (data.content.synchronyUrl) content.synchronyUrl = data.content.synchronyUrl
+      if (data.content.octaneUrl) content.octaneUrl = data.content.octaneUrl
       if (data.content.brands) content.brands = data.content.brands
     }
     if (data.email) {
@@ -252,6 +257,7 @@ async function save() {
     auth,
     legal,
     theme,
+
   }
   const section = activeTab.value
   try {
@@ -675,6 +681,26 @@ async function save() {
           </div>
 
           <div class="section">
+            <h2 class="section-title">Lender Links</h2>
+            <div class="form-grid">
+              <div class="field field--full">
+                <label>
+                  Synchrony Apply URL
+                  <span class="tip" data-tip="The URL customers are sent to when clicking 'Apply with Synchrony' on the Financing page.">ⓘ</span>
+                </label>
+                <input v-model="content.synchronyUrl" type="url" placeholder="https://www.synchrony.com/financing" />
+              </div>
+              <div class="field field--full">
+                <label>
+                  Octane Apply URL
+                  <span class="tip" data-tip="The URL customers are sent to when clicking 'Apply with Octane' on the Financing page.">ⓘ</span>
+                </label>
+                <input v-model="content.octaneUrl" type="url" placeholder="https://octane.co/flex/135761" />
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
             <div class="section-title-row">
               <h2 class="section-title">
                 Brands We Carry
@@ -1023,6 +1049,7 @@ async function save() {
             </div>
           </div>
         </template>
+
 
       </div>
     </div>

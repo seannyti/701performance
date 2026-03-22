@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useSettings } from '@/composables/useSettings'
+
+const { settings } = useSettings()
+const synchronyUrl = computed(() => settings.value?.content?.synchronyUrl || 'https://www.synchrony.com/financing')
+const octaneUrl = computed(() => settings.value?.content?.octaneUrl || 'https://octane.co/flex/135761')
 </script>
 
 <template>
@@ -26,7 +32,7 @@
           </ul>
         </div>
         <a
-          href="https://www.synchrony.com/financing"
+          :href="synchronyUrl"
           target="_blank"
           rel="noopener noreferrer"
           class="btn-apply"
@@ -50,7 +56,7 @@
           </ul>
         </div>
         <a
-          href="https://octane.co/"
+          :href="octaneUrl"
           target="_blank"
           rel="noopener noreferrer"
           class="btn-apply"

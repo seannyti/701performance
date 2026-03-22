@@ -34,6 +34,8 @@ interface ContentSettings {
   announcementBar: { enabled: boolean; text: string; bgColor: string; textColor: string }
   testimonials: { name: string; text: string; rating: number }[]
   faqs: { question: string; answer: string }[]
+  synchronyUrl: string
+  octaneUrl: string
   brands: { name: string; url: string }[]
 }
 
