@@ -1,0 +1,27 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# .NET
+bin/
+obj/
+*.user
+TestResults/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Logs
+*.log
+src/api/logs/
+
+# IDE
+.vs/
+.idea/
+.vscode/
+
+# Uploads (managed by Docker volume in prod)
+src/api/wwwroot/uploads/

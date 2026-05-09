@@ -1,0 +1,18 @@
+# Production overlay applied on top of docker-compose.yml.
+# Adds HTTPS on port 443, mounts Let's Encrypt certs, and switches nginx
+# to the production config (HTTP -> HTTPS redirect, security headers).
+#
+# On the server (with certs at /etc/letsencrypt/live/<domain>/):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+services:
+  proxy:
+    ports:
+      - "443:443"
+    volumes:
+      # Override the base nginx.conf with the production HTTPS-capable one
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      # Mount Let's Encrypt certs from the host. The CERT_DIR env var lets
+      # different domains use the same compose file.
+      - ${CERT_DIR:-/etc/letsencrypt/live/minotperformancepowersports.com}/fullchain.pem:/etc/nginx/certs/fullchain.pem:ro
+      - ${CERT_DIR:-/etc/letsencrypt/live/minotperformancepowersports.com}/privkey.pem:/etc/nginx/certs/privkey.pem:ro

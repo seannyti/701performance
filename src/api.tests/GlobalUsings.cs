@@ -1,0 +1,9 @@
+global using System.Net;
+global using System.Net.Http.Headers;
+global using System.Net.Http.Json;
+global using System.Text.Json;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.Extensions.DependencyInjection;
+global using PerformancePower.Api.Data;
+global using PerformancePower.Api.DTOs;
+global using Xunit;
