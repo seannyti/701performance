@@ -12,6 +12,7 @@ const mapsUrl = computed(() => settings.get('maps_embed_url', ''))
 const facebook = computed(() => settings.get('social_facebook', ''))
 const instagram = computed(() => settings.get('social_instagram', ''))
 const youtube = computed(() => settings.get('social_youtube', ''))
+const tiktok = computed(() => settings.get('social_tiktok', ''))
 
 const businessHours = computed<Record<string, { open: string; close: string; closed: boolean }>>(() => {
   const raw = settings.get('business_hours', '{}')
@@ -231,7 +232,7 @@ async function submitForm() {
             </div>
 
             <!-- Social links -->
-            <div v-if="facebook || instagram || youtube" class="social-links">
+            <div v-if="facebook || instagram || youtube || tiktok" class="social-links">
               <a v-if="facebook" :href="facebook" target="_blank" rel="noopener" class="social-link" title="Facebook">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
                   <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/>
@@ -247,6 +248,11 @@ async function submitForm() {
               <a v-if="youtube" :href="youtube" target="_blank" rel="noopener" class="social-link" title="YouTube">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
                   <path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 00-1.95 1.96A29 29 0 001 12a29 29 0 00.46 5.58a2.78 2.78 0 001.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 001.95-1.96A29 29 0 0023 12a29 29 0 00-.46-5.58zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/>
+                </svg>
+              </a>
+              <a v-if="tiktok" :href="tiktok" target="_blank" rel="noopener" class="social-link" title="TikTok">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                  <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005.8 20.1a6.34 6.34 0 0010.86-4.43V8.84a8.16 8.16 0 004.77 1.52V6.91a4.85 4.85 0 01-1.84-.22z"/>
                 </svg>
               </a>
             </div>

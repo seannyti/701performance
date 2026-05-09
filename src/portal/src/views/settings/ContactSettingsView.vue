@@ -25,6 +25,7 @@ const form = ref({
   social_facebook: '',
   social_instagram: '',
   social_youtube: '',
+  social_tiktok: '',
   maps_embed_url: '',
 })
 
@@ -131,6 +132,10 @@ onMounted(load)
           <div class="field">
             <label><i class="pi pi-youtube mr-1" />YouTube URL</label>
             <InputText v-model="form.social_youtube" placeholder="https://youtube.com/@yourchannel" fluid />
+          </div>
+          <div class="field">
+            <label><i class="pi pi-video mr-1" />TikTok URL</label>
+            <InputText v-model="form.social_tiktok" placeholder="https://tiktok.com/@yourhandle" fluid />
           </div>
         </Panel>
 

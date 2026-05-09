@@ -17,9 +17,11 @@ const logoNameParts = computed(() => {
 const phone = computed(() => settings.get('contact_phone'))
 const email = computed(() => settings.get('contact_email'))
 const address = computed(() => settings.get('contact_address'))
+const mapsUrl = computed(() => settings.get('maps_embed_url'))
 const facebook = computed(() => settings.get('social_facebook'))
 const instagram = computed(() => settings.get('social_instagram'))
 const youtube = computed(() => settings.get('social_youtube'))
+const tiktok = computed(() => settings.get('social_tiktok'))
 
 const businessHours = computed(() => {
   try {
@@ -91,6 +93,12 @@ const year = new Date().getFullYear()
               </svg>
               <span>YouTube</span>
             </a>
+            <a v-if="tiktok" :href="tiktok" target="_blank" rel="noopener" aria-label="TikTok" class="social-link">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005.8 20.1a6.34 6.34 0 0010.86-4.43V8.84a8.16 8.16 0 004.77 1.52V6.91a4.85 4.85 0 01-1.84-.22z"/>
+              </svg>
+              <span>TikTok</span>
+            </a>
           </div>
         </div>
 
@@ -149,6 +157,18 @@ const year = new Date().getFullYear()
               <span style="white-space: pre-line">{{ address }}</span>
             </li>
           </ul>
+
+          <div v-if="mapsUrl" class="footer__map">
+            <iframe
+              :src="mapsUrl"
+              width="100%"
+              height="180"
+              style="border:0;"
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade"
+              title="Map"
+            />
+          </div>
 
           <template v-if="hoursRows.length">
             <h4 class="footer__col-title mt">Hours</h4>
@@ -351,6 +371,18 @@ const year = new Date().getFullYear()
   margin-top: 2px;
   display: flex;
   align-items: center;
+}
+
+.footer__map {
+  margin-top: $spacing-lg;
+  border-radius: $radius-md;
+  overflow: hidden;
+  border: 1px solid $border;
+
+  iframe {
+    display: block;
+    filter: grayscale(0.2) brightness(0.85);
+  }
 }
 
 // ── Hours ───────────────────────────────────────────────────────────────────
